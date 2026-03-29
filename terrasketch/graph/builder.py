@@ -48,6 +48,22 @@ except ImportError:
     pass
 
 
+def _get_nested(attrs: dict, path: str):
+    """ドット区切りパスで辿ってネストされた属性値を取得する。
+
+    例: 'vpc_config.subnet_ids' → attrs['vpc_config']['subnet_ids']
+    ドットを含まない単純なキーにも対応する。
+    """
+    keys = path.split(".")
+    current = attrs
+    for key in keys:
+        if isinstance(current, dict):
+            current = current.get(key)
+        else:
+            return None
+    return current
+
+
 def _build_id_index(resources: list[Resource]) -> dict[str, Resource]:
     """リソースIDからResourceオブジェクトへのインデックスを構築する。"""
     index: dict[str, Resource] = {}
@@ -92,7 +108,7 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
     # 関係ルールを適用
     for src_type, attr_name, tgt_type in _ALL_RULES:
         for src in type_index.get(src_type, []):
-            attr_value = src.attributes.get(attr_name)
+            attr_value = _get_nested(src.attributes, attr_name)
             if attr_value is None:
                 continue
 

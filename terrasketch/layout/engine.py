@@ -34,12 +34,70 @@ def calculate_layout(
         node = list(graph.nodes)[0]
         return {node: (100.0, 100.0)}
 
+    # 切断グラフの場合はコンポーネントごとに個別レイアウトし、水平に並べる
+    components = list(nx.weakly_connected_components(graph))
+    if len(components) > 1:
+        return _layout_disconnected(graph, components, scale_x, scale_y)
+
     # DAGの場合は階層レイアウトを適用
     if nx.is_directed_acyclic_graph(graph):
         return _hierarchical_layout(graph, scale_x, scale_y)
 
     # フォールバック: グリッドレイアウト
     return _grid_layout(graph, scale_x, scale_y)
+
+
+def _layout_disconnected(
+    graph: nx.DiGraph,
+    components: list[set[str]],
+    scale_x: float,
+    scale_y: float,
+    gap: float = 150.0,
+) -> dict[str, tuple[float, float]]:
+    """切断グラフの各連結成分を個別にレイアウトし、水平に並べる。
+
+    各コンポーネントを独立してレイアウトした後、重ならないよう
+    水平方向にオフセットを加えて配置する。
+
+    Args:
+        graph: リソース依存関係グラフ全体。
+        components: 弱連結成分のリスト。
+        scale_x: 水平方向の間隔倍率。
+        scale_y: 垂直方向の間隔倍率。
+        gap: コンポーネント間の水平マージン。
+    """
+    all_positions: dict[str, tuple[float, float]] = {}
+    x_offset = 100.0
+
+    # ノード数の大きい順にソート（メインコンポーネントを左に配置）
+    sorted_components = sorted(components, key=len, reverse=True)
+
+    for comp_nodes in sorted_components:
+        subgraph = graph.subgraph(comp_nodes).copy()
+
+        if len(subgraph.nodes) == 1:
+            node = list(subgraph.nodes)[0]
+            sub_pos = {node: (0.0, 100.0)}
+        elif nx.is_directed_acyclic_graph(subgraph):
+            sub_pos = _hierarchical_layout(subgraph, scale_x, scale_y)
+        else:
+            sub_pos = _grid_layout(subgraph, scale_x, scale_y)
+
+        # サブポジションの最小x座標を0基準に正規化
+        if sub_pos:
+            min_x = min(p[0] for p in sub_pos.values())
+            sub_pos = {n: (x - min_x, y) for n, (x, y) in sub_pos.items()}
+
+        # 水平オフセットを適用
+        for node, (x, y) in sub_pos.items():
+            all_positions[node] = (x + x_offset, y)
+
+        # 次のコンポーネント用にオフセットを更新
+        if sub_pos:
+            max_x = max(p[0] for p in sub_pos.values())
+            x_offset += max_x + gap + scale_x
+
+    return all_positions
 
 
 def _hierarchical_layout(

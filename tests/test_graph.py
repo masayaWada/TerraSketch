@@ -2,7 +2,7 @@
 
 import pytest
 
-from terrasketch.graph.builder import build_graph
+from terrasketch.graph.builder import build_graph, _get_nested
 from terrasketch.graph.security import annotate_security_rules
 from terrasketch.graph.summary import generate_summary
 from terrasketch.parser.state_parser import Resource
@@ -95,3 +95,74 @@ def test_generate_summary():
     assert "Total resources: 4" in summary
     assert "aws_vpc" in summary
     assert "Root resources" in summary
+
+
+# --- A-1: ネスト属性パス解決のテスト ---
+
+
+def test_get_nested_simple():
+    """単純なキーでネスト関数が動作することを確認。"""
+    attrs = {"vpc_id": "vpc-1", "name": "test"}
+    assert _get_nested(attrs, "vpc_id") == "vpc-1"
+    assert _get_nested(attrs, "name") == "test"
+    assert _get_nested(attrs, "missing") is None
+
+
+def test_get_nested_dot_path():
+    """ドット区切りパスでネストされた値を取得できることを確認。"""
+    attrs = {
+        "vpc_config": {
+            "subnet_ids": ["subnet-1", "subnet-2"],
+            "security_group_ids": ["sg-1"],
+        }
+    }
+    assert _get_nested(attrs, "vpc_config.subnet_ids") == ["subnet-1", "subnet-2"]
+    assert _get_nested(attrs, "vpc_config.security_group_ids") == ["sg-1"]
+    assert _get_nested(attrs, "vpc_config.missing") is None
+
+
+def test_get_nested_deep_path():
+    """3階層以上のドットパスが動作することを確認。"""
+    attrs = {"a": {"b": {"c": "value"}}}
+    assert _get_nested(attrs, "a.b.c") == "value"
+    assert _get_nested(attrs, "a.b.missing") is None
+    assert _get_nested(attrs, "a.missing.c") is None
+
+
+def test_get_nested_non_dict_intermediate():
+    """中間値がdictでない場合にNoneが返ることを確認。"""
+    attrs = {"vpc_config": "not_a_dict"}
+    assert _get_nested(attrs, "vpc_config.subnet_ids") is None
+
+
+def test_nested_attribute_in_graph():
+    """ネスト属性パスでグラフのエッジが正しく構築されることを確認。"""
+    vpc = Resource(
+        id="vpc-1", type="aws_vpc", name="main",
+        provider="aws", attributes={"id": "vpc-1"},
+    )
+    subnet = Resource(
+        id="subnet-1", type="aws_subnet", name="pub",
+        provider="aws", attributes={"id": "subnet-1", "vpc_id": "vpc-1"},
+    )
+    sg = Resource(
+        id="sg-1", type="aws_security_group", name="lambda_sg",
+        provider="aws", attributes={"id": "sg-1", "vpc_id": "vpc-1"},
+    )
+    lambda_fn = Resource(
+        id="fn-1", type="aws_lambda_function", name="handler",
+        provider="aws",
+        attributes={
+            "id": "fn-1",
+            "vpc_config": {
+                "subnet_ids": ["subnet-1"],
+                "security_group_ids": ["sg-1"],
+            },
+        },
+    )
+    resources = [vpc, subnet, sg, lambda_fn]
+    graph = build_graph(resources)
+
+    # Lambda -> Subnet と Lambda -> SG のエッジが生成されるべき
+    assert graph.has_edge("aws_subnet.pub", "aws_lambda_function.handler")
+    assert graph.has_edge("aws_security_group.lambda_sg", "aws_lambda_function.handler")

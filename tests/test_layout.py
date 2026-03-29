@@ -57,3 +57,73 @@ def test_grid_layout_fallback():
     graph.add_edge("c", "a")
     positions = calculate_layout(graph)
     assert len(positions) == 3
+
+
+# --- A-2: 切断グラフ分離レイアウトのテスト ---
+
+
+def test_disconnected_graph_no_overlap():
+    """切断グラフの各コンポーネントが重ならないことを確認。"""
+    graph = nx.DiGraph()
+    # コンポーネント1: a -> b -> c
+    graph.add_edge("a", "b")
+    graph.add_edge("b", "c")
+    # コンポーネント2: x -> y（切断）
+    graph.add_edge("x", "y")
+
+    positions = calculate_layout(graph)
+    assert len(positions) == 5
+
+    # 各コンポーネントのx座標範囲を取得
+    comp1_xs = [positions[n][0] for n in ["a", "b", "c"]]
+    comp2_xs = [positions[n][0] for n in ["x", "y"]]
+
+    # コンポーネント1（ノード数が多い）が左、コンポーネント2が右
+    # 重なりがないことを確認
+    assert max(comp1_xs) < min(comp2_xs) or max(comp2_xs) < min(comp1_xs)
+
+
+def test_disconnected_single_nodes():
+    """孤立ノード複数が正しく分離配置されることを確認。"""
+    graph = nx.DiGraph()
+    graph.add_node("isolated_1")
+    graph.add_node("isolated_2")
+    graph.add_node("isolated_3")
+
+    positions = calculate_layout(graph)
+    assert len(positions) == 3
+
+    # 全ノードが異なる座標を持つ
+    coords = list(positions.values())
+    assert len(set(coords)) == 3
+
+
+def test_disconnected_mixed_dag_and_cycle():
+    """DAGコンポーネントと巡回コンポーネントが混在する切断グラフ。"""
+    graph = nx.DiGraph()
+    # DAGコンポーネント
+    graph.add_edge("a", "b")
+    # 巡回コンポーネント
+    graph.add_edge("x", "y")
+    graph.add_edge("y", "z")
+    graph.add_edge("z", "x")
+
+    positions = calculate_layout(graph)
+    assert len(positions) == 5
+
+    # 全ノードの座標が正
+    for _, (x, y) in positions.items():
+        assert x >= 0
+        assert y >= 0
+
+
+def test_large_graph_performance():
+    """大規模グラフ（100ノード）のレイアウトが完了することを確認。"""
+    graph = nx.DiGraph()
+    # 10本の独立チェーン（各10ノード）
+    for chain in range(10):
+        for i in range(9):
+            graph.add_edge(f"c{chain}_n{i}", f"c{chain}_n{i+1}")
+
+    positions = calculate_layout(graph)
+    assert len(positions) == 100
