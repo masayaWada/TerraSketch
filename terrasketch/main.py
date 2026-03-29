@@ -13,8 +13,11 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger("terrasketch")
 
 from terrasketch.graph.builder import build_graph
 from terrasketch.graph.security import annotate_security_rules
@@ -46,51 +49,62 @@ def generate(
     Returns:
         生成された出力ファイルのPath。
     """
-    print(f"[INFO] stateファイルを解析中: {state_path}")
+    logger.info("stateファイルを解析中: %s", state_path)
     resources = parse_state(state_path)
-    print(f"[INFO] {len(resources)}件のリソースを検出。")
+    logger.info("%d件のリソースを検出。", len(resources))
 
     # プロバイダでフィルタリング
     prefix_map = {"aws": "aws_", "azure": "azurerm_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
-        print(f"[INFO] {provider.upper()}リソース{len(resources)}件にフィルタ。")
+        logger.info("%sリソース%d件にフィルタ。", provider.upper(), len(resources))
 
     if not resources:
-        print("[WARN] 該当リソースが見つかりません。出力は空になります。")
+        logger.warning("該当リソースが見つかりません。出力は空になります。")
 
-    print("[INFO] 依存関係グラフを構築中...")
+    logger.info("依存関係グラフを構築中...")
     graph = build_graph(resources)
-    print(
-        f"[INFO] グラフ: {graph.number_of_nodes()}ノード, "
-        f"{graph.number_of_edges()}エッジ。"
+    logger.info(
+        "グラフ: %dノード, %dエッジ。",
+        graph.number_of_nodes(),
+        graph.number_of_edges(),
     )
 
     if show_security:
-        print("[INFO] セキュリティグループルールを注釈中...")
+        logger.info("セキュリティグループルールを注釈中...")
         annotate_security_rules(graph)
 
     if show_summary:
         summary = generate_summary(resources, graph)
         print(summary)
 
-    print("[INFO] レイアウトを計算中...")
+    logger.info("レイアウトを計算中...")
     positions = calculate_layout(graph)
 
     output_path = Path(output_dir)
 
     if output_format == "mermaid":
-        print("[INFO] Mermaidダイアグラムをレンダリング中...")
+        logger.info("Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.md")
     else:
-        print("[INFO] draw.ioダイアグラムをレンダリング中...")
+        logger.info("draw.ioダイアグラムをレンダリング中...")
         renderer = DrawioRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio")
 
-    print(f"[SUCCESS] 構成図を保存しました: {result}")
+    logger.info("構成図を保存しました: %s", result)
     return result
+
+
+def _setup_logging(verbose: bool = False) -> None:
+    """ロギングの基本設定を行う。"""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="[%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
 
 
 def main() -> None:
@@ -136,10 +150,18 @@ def main() -> None:
         help="リソースサマリーを標準出力に表示",
     )
 
+    gen_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="デバッグレベルの詳細ログを表示",
+    )
+
     # guiコマンド
     subparsers.add_parser("gui", help="GUIを起動")
 
     args = parser.parse_args()
+
+    _setup_logging(getattr(args, "verbose", False))
 
     if args.command == "generate":
         generate(

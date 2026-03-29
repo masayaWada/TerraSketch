@@ -31,6 +31,24 @@ _AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("azurerm_network_security_group", "resource_group_name", "azurerm_resource_group"),
 ]
 
+# 包含関係（親が子を含む）を表すルールのセット。
+# (src_type, attr_name, tgt_type) のキーで判定する。
+_CONTAINMENT_RULES: set[tuple[str, str, str]] = {
+    ("aws_subnet", "vpc_id", "aws_vpc"),
+    ("aws_instance", "subnet_id", "aws_subnet"),
+    ("aws_network_interface", "subnet_id", "aws_subnet"),
+    ("aws_nat_gateway", "subnet_id", "aws_subnet"),
+    ("aws_route_table", "vpc_id", "aws_vpc"),
+    ("aws_internet_gateway", "vpc_id", "aws_vpc"),
+    ("aws_security_group", "vpc_id", "aws_vpc"),
+    ("aws_lambda_function", "vpc_config.subnet_ids", "aws_subnet"),
+    ("aws_ecs_service", "network_configuration.subnets", "aws_subnet"),
+    ("aws_lb", "subnets", "aws_subnet"),
+    ("aws_alb", "subnets", "aws_subnet"),
+    ("azurerm_subnet", "virtual_network_name", "azurerm_virtual_network"),
+    ("azurerm_network_interface", "subnet_id", "azurerm_subnet"),
+}
+
 _ALL_RULES = _AWS_RELATIONSHIP_RULES + _AZURE_RELATIONSHIP_RULES
 
 # 拡張ルールが利用可能であれば読み込む
@@ -107,6 +125,10 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
 
     # 関係ルールを適用
     for src_type, attr_name, tgt_type in _ALL_RULES:
+        # エッジの関係タイプを判定（包含 or 参照）
+        rule_key = (src_type, attr_name, tgt_type)
+        relation_type = "contains" if rule_key in _CONTAINMENT_RULES else "references"
+
         for src in type_index.get(src_type, []):
             attr_value = _get_nested(src.attributes, attr_name)
             if attr_value is None:
@@ -123,13 +145,19 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
                 target = id_index.get(ref_id)
                 if target and target.type == tgt_type:
                     # 親（参照先）から子（参照元）へのエッジ
-                    graph.add_edge(target.address, src.address)
+                    graph.add_edge(
+                        target.address, src.address,
+                        relation_type=relation_type,
+                    )
                     continue
 
                 # フォールバック: 名前で一致を試みる（Azure等で名前参照を使用する場合）
                 for candidate in type_index.get(tgt_type, []):
                     if ref_id in (candidate.name, candidate.attributes.get("name", "")):
-                        graph.add_edge(candidate.address, src.address)
+                        graph.add_edge(
+                            candidate.address, src.address,
+                            relation_type=relation_type,
+                        )
                         break
 
     return graph

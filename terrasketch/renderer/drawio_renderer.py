@@ -66,12 +66,26 @@ class DrawioRenderer:
 
         return cell
 
+    # エッジスタイル定義: 包含関係と参照関係で視覚的に区別
+    _EDGE_STYLES = {
+        "contains": (
+            "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;"
+            "jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;"
+        ),
+        "references": (
+            "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;"
+            "jettySize=auto;html=1;strokeColor=#1565c0;strokeWidth=1;"
+            "dashed=1;dashPattern=8 4;"
+        ),
+    }
+
     def create_edge(
         self,
         parent: ET.Element,
         edge_id: str,
         source_id: str,
         target_id: str,
+        relation_type: str = "contains",
     ) -> ET.Element:
         """draw.ioエッジ（mxCell）要素を作成する。
 
@@ -80,6 +94,7 @@ class DrawioRenderer:
             edge_id: エッジのユニークなセルID。
             source_id: ソースノードのセルID。
             target_id: ターゲットノードのセルID。
+            relation_type: 関係タイプ（'contains' または 'references'）。
 
         Returns:
             作成されたmxCellエッジ要素。
@@ -87,11 +102,8 @@ class DrawioRenderer:
         cell = ET.SubElement(parent, "mxCell")
         cell.set("id", edge_id)
         cell.set("value", "")
-        cell.set(
-            "style",
-            "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;"
-            "jettySize=auto;html=1;strokeColor=#666666;strokeWidth=2;",
-        )
+        style = self._EDGE_STYLES.get(relation_type, self._EDGE_STYLES["contains"])
+        cell.set("style", style)
         cell.set("edge", "1")
         cell.set("parent", "1")
         cell.set("source", source_id)
@@ -102,6 +114,39 @@ class DrawioRenderer:
         geo.set("as", "geometry")
 
         return cell
+
+    @staticmethod
+    def _build_tooltip(resource: Resource) -> str:
+        """リソース属性からツールチップ用のHTMLテキストを構築する。
+
+        ARN、CIDR、タグ等の重要な属性をツールチップに含める。
+        """
+        attrs = resource.attributes
+        tooltip_parts: list[str] = []
+
+        tooltip_parts.append(f"Type: {resource.type}")
+        tooltip_parts.append(f"Name: {resource.name}")
+        if resource.id:
+            tooltip_parts.append(f"ID: {resource.id}")
+
+        # 主要属性を抽出
+        _TOOLTIP_KEYS = [
+            "arn", "cidr_block", "cidr_blocks", "availability_zone",
+            "instance_type", "ami", "engine", "engine_version",
+            "address_space", "location", "sku_name",
+        ]
+        for key in _TOOLTIP_KEYS:
+            value = attrs.get(key)
+            if value is not None:
+                tooltip_parts.append(f"{key}: {value}")
+
+        # タグを表示
+        tags = attrs.get("tags")
+        if isinstance(tags, dict) and tags:
+            tag_str = ", ".join(f"{k}={v}" for k, v in sorted(tags.items()))
+            tooltip_parts.append(f"Tags: {tag_str}")
+
+        return "&#xa;".join(tooltip_parts)
 
     @staticmethod
     def _get_container_origin(
@@ -262,6 +307,7 @@ class DrawioRenderer:
             cell.set("style", style.style)
             cell.set("vertex", "1")
             cell.set("parent", parent_id)
+            cell.set("tooltip", self._build_tooltip(resource))
 
             geo = ET.SubElement(cell, "mxGeometry")
             if parent_id != "1":
@@ -281,13 +327,17 @@ class DrawioRenderer:
             geo.set("height", str(round(style.height)))
             geo.set("as", "geometry")
 
-        # エッジを作成
-        for source, target in graph.edges:
+        # エッジを作成（関係タイプに応じたスタイルを適用）
+        for source, target, edge_data in graph.edges(data=True):
             src_cell = node_cell_ids.get(source)
             tgt_cell = node_cell_ids.get(target)
             if src_cell and tgt_cell:
                 edge_id = self._next_id()
-                self.create_edge(root, edge_id, src_cell, tgt_cell)
+                relation_type = edge_data.get("relation_type", "contains")
+                self.create_edge(
+                    root, edge_id, src_cell, tgt_cell,
+                    relation_type=relation_type,
+                )
 
         # ファイルに書き出し
         tree = ET.ElementTree(mxfile)

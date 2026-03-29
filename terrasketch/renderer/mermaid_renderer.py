@@ -63,47 +63,121 @@ class MermaidRenderer:
         lines.append("```mermaid")
         lines.append("flowchart TD")
 
-        # プロバイダ別にノードをグループ化（subgraphスタイリング用）
-        provider_groups: dict[str, list[str]] = {}
+        # VPC/VNet コンテナとSubnetコンテナの階層構造を構築
+        container_types = {"aws_vpc", "azurerm_virtual_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet"}
+
+        # VPCの子ノードを収集
+        vpc_children: dict[str, list[str]] = {}
+        subnet_children: dict[str, list[str]] = {}
+        contained_in_vpc: set[str] = set()
+        contained_in_subnet: set[str] = set()
+
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
-            resource: Resource | None = data.get("resource")
+            resource = data.get("resource")
             if resource is None:
                 continue
+            if resource.type in container_types:
+                children = list(nx.descendants(graph, node_addr))
+                vpc_children[node_addr] = children
+                contained_in_vpc.update(children)
+            elif resource.type in subnet_types:
+                children = list(nx.descendants(graph, node_addr))
+                subnet_children[node_addr] = children
+                contained_in_subnet.update(children)
 
-            provider = _detect_provider(resource.type)
-            provider_groups.setdefault(provider, []).append(node_addr)
+        # ノードを出力（VPC > Subnet > リソースの階層subgraph）
+        emitted_nodes: set[str] = set()
 
-        # プロバイダ別にノードを出力
-        for provider, nodes in sorted(provider_groups.items()):
-            if provider != "unknown":
-                lines.append(f"    subgraph {provider.upper()}")
+        for vpc_addr in sorted(vpc_children.keys()):
+            vpc_data = graph.nodes[vpc_addr]
+            vpc_resource = vpc_data.get("resource")
+            if vpc_resource is None:
+                continue
+            vpc_id = _sanitize_id(vpc_addr)
+            lines.append(f"    subgraph {vpc_id}_group[\"{vpc_resource.type} / {vpc_resource.name}\"]")
+            emitted_nodes.add(vpc_addr)
 
-            for node_addr in sorted(nodes):
-                data = graph.nodes[node_addr]
-                resource = data.get("resource")
-                if resource is None:
+            # VPC直下のSubnetをsubgraphとして出力
+            for subnet_addr in sorted(subnet_children.keys()):
+                if subnet_addr not in vpc_children.get(vpc_addr, []):
                     continue
+                subnet_data = graph.nodes[subnet_addr]
+                subnet_resource = subnet_data.get("resource")
+                if subnet_resource is None:
+                    continue
+                sub_id = _sanitize_id(subnet_addr)
+                lines.append(f"        subgraph {sub_id}_group[\"{subnet_resource.type} / {subnet_resource.name}\"]")
+                emitted_nodes.add(subnet_addr)
 
-                node_id = _sanitize_id(node_addr)
-                label = f"{resource.type}\\n{resource.name}"
-                open_b, close_b = _get_shape(resource.type)
-                lines.append(f"        {node_id}{open_b}\"{label}\"{close_b}")
+                # Subnet内のリソース
+                for child_addr in sorted(subnet_children[subnet_addr]):
+                    if child_addr in emitted_nodes:
+                        continue
+                    child_data = graph.nodes[child_addr]
+                    child_resource = child_data.get("resource")
+                    if child_resource is None:
+                        continue
+                    child_node_id = _sanitize_id(child_addr)
+                    label = f"{child_resource.type}\\n{child_resource.name}"
+                    open_b, close_b = _get_shape(child_resource.type)
+                    lines.append(f"            {child_node_id}{open_b}\"{label}\"{close_b}")
+                    emitted_nodes.add(child_addr)
 
-            if provider != "unknown":
-                lines.append("    end")
+                lines.append("        end")
 
-        # エッジを出力
+            # VPC直下（Subnet外）のリソース
+            for child_addr in sorted(vpc_children[vpc_addr]):
+                if child_addr in emitted_nodes:
+                    continue
+                child_data = graph.nodes[child_addr]
+                child_resource = child_data.get("resource")
+                if child_resource is None:
+                    continue
+                child_node_id = _sanitize_id(child_addr)
+                label = f"{child_resource.type}\\n{child_resource.name}"
+                open_b, close_b = _get_shape(child_resource.type)
+                lines.append(f"        {child_node_id}{open_b}\"{label}\"{close_b}")
+                emitted_nodes.add(child_addr)
+
+            lines.append("    end")
+
+        # VPC外のリソースを出力
+        for node_addr in sorted(graph.nodes):
+            if node_addr in emitted_nodes:
+                continue
+            data = graph.nodes[node_addr]
+            resource = data.get("resource")
+            if resource is None:
+                continue
+            node_id = _sanitize_id(node_addr)
+            label = f"{resource.type}\\n{resource.name}"
+            open_b, close_b = _get_shape(resource.type)
+            lines.append(f"    {node_id}{open_b}\"{label}\"{close_b}")
+            emitted_nodes.add(node_addr)
+
+        # エッジを出力（包含関係は実線、参照関係は破線で区別）
         for source, target in graph.edges:
             src_id = _sanitize_id(source)
             tgt_id = _sanitize_id(target)
 
             edge_data = graph.edges[source, target]
+            relation_type = edge_data.get("relation_type", "contains")
             label = edge_data.get("label", "")
-            if label:
-                lines.append(f"    {src_id} -->|\"{label}\"| {tgt_id}")
+
+            if relation_type == "references":
+                # 参照関係: 破線矢印
+                if label:
+                    lines.append(f"    {src_id} -.->|\"{label}\"| {tgt_id}")
+                else:
+                    lines.append(f"    {src_id} -.-> {tgt_id}")
             else:
-                lines.append(f"    {src_id} --> {tgt_id}")
+                # 包含関係: 実線矢印
+                if label:
+                    lines.append(f"    {src_id} -->|\"{label}\"| {tgt_id}")
+                else:
+                    lines.append(f"    {src_id} --> {tgt_id}")
 
         # スタイルクラス定義
         lines.append("")
