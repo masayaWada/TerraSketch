@@ -19,10 +19,13 @@ Terraform state（JSON）を読み込むだけで、リソース間の依存関�
 ## 主な特徴
 
 - **Terraform state JSON のみで完結** — クラウド認証情報やAPIアクセス不要
-- **draw.io / Mermaid 出力** — 2形式に対応、用途に応じて選択可能
+- **draw.io / Mermaid / PlantUML 出力** — 3形式に対応、用途に応じて選択可能
 - **VPC コンテナグルーピング** — VPC/VNet をバウンディングボックスで描画し、子リソースをネスト表示
 - **セキュリティルール可視化** — SecurityGroup の ingress/egress ルールをノードラベルに表示
-- **30種以上のリソースアイコン** — AWS 28種、Azure 13種のdraw.ioネイティブアイコン対応
+- **40種以上のリソースアイコン** — AWS 28種、Azure 13種のdraw.ioネイティブアイコン対応
+- **HCL 直接解析** — State JSON がなくても .tf ファイルから構成図を生成可能
+- **エッジタイプ区別** — 包含関係（実線）と参照関係（破線）を視覚的に区別
+- **リソースツールチップ** — draw.io でホバー時に ARN/CIDR/タグ等の属性を表示
 - **CLI / GUI 両対応** — コマンドライン・Tkinter GUI どちらからでも実行可能
 - **リソースサマリー** — タイプ別集計、グラフ統計、ルート/リーフ分析
 - **ローカル完結** — 外部サービスへの通信なし、OSS のみで構成
@@ -65,20 +68,31 @@ terrasketch generate --state state.json --provider aws --output ./output
 # Mermaid 形式で出力
 terrasketch generate --state state.json --provider aws --format mermaid
 
-# セキュリティルール注釈 + サマリー表示
-terrasketch generate --state state.json --provider aws --security --summary
+# PlantUML 形式で出力
+terrasketch generate --state state.json --provider aws --format plantuml
+
+# HCL ファイルから直接生成
+terrasketch generate --hcl main.tf --provider aws --output ./output
+
+# HCL ディレクトリから生成
+terrasketch generate --hcl ./terraform/ --provider aws --output ./output
+
+# セキュリティルール注釈 + サマリー + 詳細ログ
+terrasketch generate --state state.json --provider aws --security --summary --verbose
 ```
 
 #### CLIオプション一覧
 
 | フラグ | 説明 | デフォルト |
 |---|---|---|
-| `--state` | Terraform state JSON のパス | （必須） |
+| `--state` | Terraform state JSON のパス | `--state` または `--hcl` が必須 |
+| `--hcl` | Terraform HCL ファイル/ディレクトリのパス | `--state` または `--hcl` が必須 |
 | `--provider` | クラウドプロバイダ (`aws` / `azure`) | `aws` |
 | `--output` | 出力ディレクトリ | `.`（カレント） |
-| `--format` | 出力形式 (`drawio` / `mermaid`) | `drawio` |
+| `--format` | 出力形式 (`drawio` / `mermaid` / `plantuml`) | `drawio` |
 | `--security` | セキュリティグループルールを構成図に注釈 | off |
 | `--summary` | リソースサマリーを標準出力に表示 | off |
+| `--verbose`, `-v` | デバッグレベルの詳細ログを表示 | off |
 
 ### GUI モード
 
@@ -108,18 +122,21 @@ terrasketch generate --state samples/sample_state.json --provider aws --output .
 
 ```
 terrasketch/
-├── parser/       # Terraform state JSON 解析
+├── parser/       # 入力ファイル解析
+│   ├── state_parser.py       # Terraform state JSON 解析
+│   └── hcl_parser.py         # Terraform HCL (.tf) 解析
 ├── graph/        # リソース依存関係グラフ構築 (networkx)
-│   ├── builder.py      # グラフビルダー
+│   ├── builder.py      # グラフビルダー（ネスト属性・エッジタイプ対応）
 │   ├── security.py     # セキュリティルール可視化
 │   └── summary.py      # リソースサマリー生成
-├── layout/       # ノード座標計算（階層/グリッド）
+├── layout/       # ノード座標計算（階層/グリッド/切断グラフ分離）
 ├── renderer/     # 出力レンダラー
-│   ├── drawio_renderer.py    # draw.io XML 生成
-│   └── mermaid_renderer.py   # Mermaid flowchart 生成
+│   ├── drawio_renderer.py    # draw.io XML 生成（ツールチップ付き）
+│   ├── mermaid_renderer.py   # Mermaid flowchart 生成（VPCネスト対応）
+│   └── plantuml_renderer.py  # PlantUML コンポーネント図 生成
 ├── mapping/      # Terraform → draw.io アイコンマッピング
 │   ├── resource_map.py       # 基本マッピング（MVP）
-│   └── extended_resources.py # 拡張マッピング（30種以上）
+│   └── extended_resources.py # 拡張マッピング（40種以上）
 ├── gui/          # Tkinter GUI
 └── main.py       # CLI / GUI エントリーポイント
 ```
@@ -127,20 +144,25 @@ terrasketch/
 ### 処理フロー
 
 ```
-Terraform State JSON
+Terraform State JSON / HCL ファイル
     ↓
 1. Parser（リソース抽出）
     ↓
-2. Graph Builder（依存関係グラフ構築）
+2. Graph Builder（依存関係グラフ構築 + エッジタイプ分類）
     ↓
 3. Security Annotator（SGルール注釈）※オプション
     ↓
-4. Layout Engine（ノード座標計算）
+4. Layout Engine（ノード座標計算 + 切断グラフ分離）
     ↓
-5. Renderer（draw.io XML or Mermaid 生成）
+5. Renderer（draw.io / Mermaid / PlantUML 生成）
     ↓
-.drawio / .md 出力ファイル
+.drawio / .md / .puml 出力ファイル
 ```
+
+詳細な設計ドキュメントは `docs/` ディレクトリを参照:
+- `docs/architecture.md` — アーキテクチャ設計書
+- `docs/data-flow.md` — データフロー詳細
+- `docs/extension-guide.md` — 拡張ガイド
 
 ## 対応リソース
 
@@ -168,25 +190,25 @@ Terraform State JSON
 python -m pytest tests/ -v
 ```
 
-37件のユニットテスト・統合テストを収録:
+68件のユニットテスト・統合テストを収録:
 
 - `test_parser.py` — state JSON 解析（正常系・異常系・子モジュール）
-- `test_graph.py` — グラフ構築・セキュリティ注釈・サマリー
-- `test_layout.py` — 階層レイアウト・グリッドフォールバック・座標正規化
-- `test_renderer.py` — draw.io XML 生成・Mermaid 生成・空グラフ
+- `test_hcl_parser.py` — HCL解析（リソース抽出・属性・タグ・コメント）
+- `test_graph.py` — グラフ構築・ネスト属性・セキュリティ注釈・サマリー
+- `test_layout.py` — 階層レイアウト・グリッド・切断グラフ分離・大規模グラフ
+- `test_renderer.py` — draw.io / Mermaid / PlantUML・エッジタイプ・ツールチップ
 - `test_mapping.py` — AWS/Azure/拡張リソースマッピング・プロバイダ判定
-- `test_integration.py` — サンプルstateからの全パイプライン
+- `test_integration.py` — サンプルstateからの全パイプライン（3形式）
 
 ## 拡張ポイント
 
-以下の拡張が容易にできる設計:
+以下の拡張が容易にできる設計（詳細は `docs/extension-guide.md` を参照）:
 
 | 拡張内容 | 対象ファイル |
 |---|---|
-| プロバイダ追加（GCP等） | `mapping/resource_map.py`, `mapping/extended_resources.py` |
+| プロバイダ追加（GCP等） | `mapping/extended_resources.py`, `graph/builder.py` |
 | 関係ルール追加 | `graph/builder.py`, `mapping/extended_resources.py` |
-| 出力形式追加（PlantUML等） | `renderer/` に新レンダラーを追加 |
-| HCL 解析 | `parser/` に HCL パーサーを追加 |
+| 出力形式追加 | `renderer/` に新レンダラーを追加、`main.py` に分岐追加 |
 | セキュリティ可視化強化 | `graph/security.py` |
 
 ## ライセンス
