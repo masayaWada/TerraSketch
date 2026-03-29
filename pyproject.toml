@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "terrasketch"
 version = "0.1.0"
-description = "Generate draw.io diagrams from Terraform state files"
+description = "Terraform stateを唯一の信頼源として、AWS/Azureの構成図をdraw.io/Mermaid形式で自動生成するCLI/GUIツール"
 requires-python = ">=3.10"
 dependencies = [
     "networkx>=3.0",

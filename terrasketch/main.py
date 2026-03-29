@@ -97,7 +97,7 @@ def main() -> None:
     """CLIエントリーポイント。"""
     parser = argparse.ArgumentParser(
         prog="terrasketch",
-        description="TerraSketch - Terraform stateからdraw.io構成図を生成",
+        description="TerraSketch - Terraform stateを唯一の信頼源としてAWS/Azureの構成図を自動生成",
     )
     subparsers = parser.add_subparsers(dest="command", help="利用可能なコマンド")
 
