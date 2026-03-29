@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terrasketch"
+version = "0.1.0"
+description = "Generate draw.io diagrams from Terraform state files"
+requires-python = ">=3.10"
+dependencies = [
+    "networkx>=3.0",
+]
+
+[project.scripts]
+terrasketch = "terrasketch.main:main"
+
+[tool.setuptools.packages.find]
+include = ["terrasketch*"]
