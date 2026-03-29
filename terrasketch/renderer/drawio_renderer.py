@@ -102,6 +102,21 @@ class DrawioRenderer:
 
         return cell
 
+    @staticmethod
+    def _get_container_origin(
+        root: ET.Element, container_id: str
+    ) -> tuple[float, float]:
+        """Get the (x, y) origin of a container cell."""
+        for cell in root.iter("mxCell"):
+            if cell.get("id") == container_id:
+                geo = cell.find("mxGeometry")
+                if geo is not None:
+                    return (
+                        float(geo.get("x", "0")),
+                        float(geo.get("y", "0")),
+                    )
+        return (0.0, 0.0)
+
     def render(
         self,
         graph: nx.DiGraph,
@@ -156,7 +171,65 @@ class DrawioRenderer:
         # Map node addresses to cell IDs
         node_cell_ids: dict[str, str] = {}
 
-        # Create nodes
+        # Build container groups (VPC contains its children)
+        container_types = {"aws_vpc", "azurerm_virtual_network"}
+        container_children: dict[str, list[str]] = {}
+        contained_nodes: set[str] = set()
+
+        for node_addr in graph.nodes:
+            data = graph.nodes[node_addr]
+            resource = data.get("resource")
+            if resource and resource.type in container_types:
+                children = list(nx.descendants(graph, node_addr))
+                container_children[node_addr] = children
+                contained_nodes.update(children)
+
+        # Create container nodes (VPC as bounding boxes)
+        container_cell_ids: dict[str, str] = {}
+        for container_addr, children in container_children.items():
+            data = graph.nodes[container_addr]
+            resource = data.get("resource")
+            if resource is None:
+                continue
+
+            # Calculate bounding box from children positions
+            child_positions = [
+                positions.get(c, (100.0, 100.0)) for c in children
+            ]
+            container_pos = positions.get(container_addr, (100.0, 100.0))
+            all_pos = child_positions + [container_pos]
+
+            if all_pos:
+                min_x = min(p[0] for p in all_pos) - 40
+                min_y = min(p[1] for p in all_pos) - 60
+                max_x = max(p[0] for p in all_pos) + 100
+                max_y = max(p[1] for p in all_pos) + 100
+
+                cell_id = self._next_id()
+                container_cell_ids[container_addr] = cell_id
+                node_cell_ids[container_addr] = cell_id
+
+                container_style = (
+                    "rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;"
+                    "strokeColor=#2e7d32;strokeWidth=2;dashed=1;"
+                    "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
+                    "fontSize=14;fontStyle=1;container=1;collapsible=0;"
+                )
+                cell = ET.SubElement(root, "mxCell")
+                cell.set("id", cell_id)
+                cell.set("value", f"{resource.type} / {resource.name}")
+                cell.set("style", container_style)
+                cell.set("vertex", "1")
+                cell.set("parent", "1")
+
+                geo = ET.SubElement(cell, "mxGeometry")
+                geo.set("x", str(round(min_x)))
+                geo.set("y", str(round(min_y)))
+                geo.set("width", str(round(max_x - min_x)))
+                geo.set("height", str(round(max_y - min_y)))
+                geo.set("as", "geometry")
+
+        # Create resource nodes
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
             resource: Resource | None = data.get("resource")
@@ -164,14 +237,48 @@ class DrawioRenderer:
             if resource is None:
                 continue
 
+            # Skip if already created as a container
+            if node_addr in container_cell_ids:
+                continue
+
             cell_id = self._next_id()
             node_cell_ids[node_addr] = cell_id
 
             style = get_drawio_style(resource.type)
-            label = f"{resource.type}\n{resource.name}"
+            label = data.get("label", f"{resource.type}\n{resource.name}")
             x, y = positions.get(node_addr, (100.0, 100.0))
 
-            self.create_node(root, cell_id, label, style, x, y)
+            # Determine parent: either a container or the root
+            parent_id = "1"
+            for container_addr, children in container_children.items():
+                if node_addr in children and container_addr in container_cell_ids:
+                    parent_id = container_cell_ids[container_addr]
+                    break
+
+            cell = ET.SubElement(root, "mxCell")
+            cell.set("id", cell_id)
+            cell.set("value", label)
+            cell.set("style", style.style)
+            cell.set("vertex", "1")
+            cell.set("parent", parent_id)
+
+            geo = ET.SubElement(cell, "mxGeometry")
+            if parent_id != "1":
+                # Use relative coordinates within container
+                container_geo = self._get_container_origin(
+                    root, container_cell_ids.get(
+                        next(ca for ca, ch in container_children.items()
+                             if node_addr in ch), ""
+                    )
+                )
+                geo.set("x", str(round(x - container_geo[0])))
+                geo.set("y", str(round(y - container_geo[1])))
+            else:
+                geo.set("x", str(round(x)))
+                geo.set("y", str(round(y)))
+            geo.set("width", str(round(style.width)))
+            geo.set("height", str(round(style.height)))
+            geo.set("as", "geometry")
 
         # Create edges
         for source, target in graph.edges:

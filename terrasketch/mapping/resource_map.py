@@ -104,6 +104,26 @@ _DEFAULT_STYLE = DrawioStyle(
 )
 
 
+def _load_extended() -> None:
+    """Lazy-load extended resource mappings on first miss."""
+    global _extended_loaded
+    if _extended_loaded:
+        return
+    _extended_loaded = True
+    try:
+        from terrasketch.mapping.extended_resources import (
+            EXTENDED_AWS_MAPPING,
+            EXTENDED_AZURE_MAPPING,
+        )
+        _AWS_MAPPING.update(EXTENDED_AWS_MAPPING)
+        _AZURE_MAPPING.update(EXTENDED_AZURE_MAPPING)
+    except ImportError:
+        pass
+
+
+_extended_loaded = False
+
+
 def get_drawio_style(resource_type: str) -> DrawioStyle:
     """Get the draw.io style for a Terraform resource type.
 
@@ -117,6 +137,14 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
         return _AWS_MAPPING[resource_type]
     if resource_type in _AZURE_MAPPING:
         return _AZURE_MAPPING[resource_type]
+
+    # Try extended mappings
+    _load_extended()
+    if resource_type in _AWS_MAPPING:
+        return _AWS_MAPPING[resource_type]
+    if resource_type in _AZURE_MAPPING:
+        return _AZURE_MAPPING[resource_type]
+
     return _DEFAULT_STYLE
 
 

@@ -33,6 +33,20 @@ _AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
 
 _ALL_RULES = _AWS_RELATIONSHIP_RULES + _AZURE_RELATIONSHIP_RULES
 
+# Load extended rules if available
+try:
+    from terrasketch.mapping.extended_resources import (
+        EXTENDED_AWS_RELATIONSHIP_RULES,
+        EXTENDED_AZURE_RELATIONSHIP_RULES,
+    )
+    _ALL_RULES = (
+        _ALL_RULES
+        + EXTENDED_AWS_RELATIONSHIP_RULES
+        + EXTENDED_AZURE_RELATIONSHIP_RULES
+    )
+except ImportError:
+    pass
+
 
 def _build_id_index(resources: list[Resource]) -> dict[str, Resource]:
     """Build an index mapping resource IDs to Resource objects."""

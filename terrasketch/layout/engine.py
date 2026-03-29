@@ -96,13 +96,22 @@ def _spring_layout(
     scale_x: float,
     scale_y: float,
 ) -> dict[str, tuple[float, float]]:
-    """Fallback spring layout for non-DAG graphs."""
-    pos = nx.spring_layout(graph, seed=42)
+    """Fallback grid layout for non-DAG (cyclic) graphs.
+
+    Arranges nodes in a simple grid pattern. This avoids a numpy
+    dependency that nx.spring_layout requires.
+    """
+    import math
+
+    nodes = sorted(graph.nodes)
+    cols = max(1, math.ceil(math.sqrt(len(nodes))))
 
     positions: dict[str, tuple[float, float]] = {}
-    for node, (x, y) in pos.items():
-        px = 100.0 + (x + 1) * scale_x * 2
-        py = 100.0 + (y + 1) * scale_y * 2
-        positions[node] = (px, py)
+    for i, node in enumerate(nodes):
+        row = i // cols
+        col = i % cols
+        x = 100.0 + col * scale_x
+        y = 100.0 + row * scale_y
+        positions[node] = (x, y)
 
     return positions

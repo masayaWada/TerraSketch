@@ -2,7 +2,9 @@
 
 Usage:
     # CLI mode
-    terrasketch generate --state state.json --provider aws --output ./output
+    terrasketch generate --state state.json --provider aws
+    terrasketch generate --state state.json --provider aws --format mermaid
+    terrasketch generate --state state.json --provider aws --security --summary
 
     # GUI mode
     terrasketch gui
@@ -15,21 +17,34 @@ import sys
 from pathlib import Path
 
 from terrasketch.graph.builder import build_graph
+from terrasketch.graph.security import annotate_security_rules
+from terrasketch.graph.summary import generate_summary
 from terrasketch.layout.engine import calculate_layout
 from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
+from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 
 
-def generate(state_path: str, provider: str, output_dir: str) -> Path:
+def generate(
+    state_path: str,
+    provider: str,
+    output_dir: str,
+    output_format: str = "drawio",
+    show_security: bool = False,
+    show_summary: bool = False,
+) -> Path:
     """Run the full diagram generation pipeline.
 
     Args:
         state_path: Path to the Terraform state JSON file.
         provider: Cloud provider filter ('aws' or 'azure').
-        output_dir: Directory to write the output .drawio file.
+        output_dir: Directory to write the output file.
+        output_format: Output format ('drawio' or 'mermaid').
+        show_security: Whether to annotate security group rules.
+        show_summary: Whether to print a resource summary.
 
     Returns:
-        Path to the generated .drawio file.
+        Path to the generated output file.
     """
     print(f"[INFO] Parsing state file: {state_path}")
     resources = parse_state(state_path)
@@ -52,13 +67,27 @@ def generate(state_path: str, provider: str, output_dir: str) -> Path:
         f"{graph.number_of_edges()} edges."
     )
 
+    if show_security:
+        print("[INFO] Annotating security group rules...")
+        annotate_security_rules(graph)
+
+    if show_summary:
+        summary = generate_summary(resources, graph)
+        print(summary)
+
     print("[INFO] Calculating layout...")
     positions = calculate_layout(graph)
 
-    print("[INFO] Rendering draw.io diagram...")
-    renderer = DrawioRenderer()
-    output_path = Path(output_dir) / "terrasketch_output.drawio"
-    result = renderer.render(graph, positions, output_path)
+    output_path = Path(output_dir)
+
+    if output_format == "mermaid":
+        print("[INFO] Rendering Mermaid diagram...")
+        renderer = MermaidRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.md")
+    else:
+        print("[INFO] Rendering draw.io diagram...")
+        renderer = DrawioRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio")
 
     print(f"[SUCCESS] Diagram saved to: {result}")
     return result
@@ -90,6 +119,22 @@ def main() -> None:
         default=".",
         help="Output directory (default: current directory)",
     )
+    gen_parser.add_argument(
+        "--format",
+        choices=["drawio", "mermaid"],
+        default="drawio",
+        help="Output format (default: drawio)",
+    )
+    gen_parser.add_argument(
+        "--security",
+        action="store_true",
+        help="Annotate security group rules on the diagram",
+    )
+    gen_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Print a resource summary to stdout",
+    )
 
     # gui command
     subparsers.add_parser("gui", help="Launch the graphical user interface")
@@ -97,7 +142,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "generate":
-        generate(args.state, args.provider, args.output)
+        generate(
+            args.state,
+            args.provider,
+            args.output,
+            output_format=args.format,
+            show_security=args.security,
+            show_summary=args.summary,
+        )
     elif args.command == "gui":
         from terrasketch.gui.app import TerraSketchApp
 

@@ -13,9 +13,12 @@ from tkinter import filedialog, scrolledtext, ttk
 from typing import TextIO
 
 from terrasketch.graph.builder import build_graph
+from terrasketch.graph.security import annotate_security_rules
+from terrasketch.graph.summary import generate_summary
 from terrasketch.layout.engine import calculate_layout
 from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
+from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 
 
 class LogRedirector:
@@ -49,6 +52,9 @@ class TerraSketchApp:
         self._state_path = tk.StringVar()
         self._output_dir = tk.StringVar(value=str(Path.cwd()))
         self._provider = tk.StringVar(value="aws")
+        self._format = tk.StringVar(value="drawio")
+        self._security = tk.BooleanVar(value=False)
+        self._summary = tk.BooleanVar(value=False)
 
         self._build_ui()
 
@@ -87,6 +93,27 @@ class TerraSketchApp:
                 prov_frame, text=provider.upper(), value=provider,
                 variable=self._provider,
             ).pack(side=tk.LEFT, padx=10)
+
+        # Output format selection
+        fmt_frame = ttk.LabelFrame(main_frame, text="Output Format", padding=5)
+        fmt_frame.pack(fill=tk.X, pady=(0, 5))
+
+        for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid")):
+            ttk.Radiobutton(
+                fmt_frame, text=label, value=fmt,
+                variable=self._format,
+            ).pack(side=tk.LEFT, padx=10)
+
+        # Options
+        opts_frame = ttk.LabelFrame(main_frame, text="Options", padding=5)
+        opts_frame.pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Checkbutton(
+            opts_frame, text="Security Rules", variable=self._security,
+        ).pack(side=tk.LEFT, padx=10)
+        ttk.Checkbutton(
+            opts_frame, text="Show Summary", variable=self._summary,
+        ).pack(side=tk.LEFT, padx=10)
 
         # Execute button
         self._run_btn = ttk.Button(
@@ -163,12 +190,26 @@ class TerraSketchApp:
                 f"{graph.number_of_edges()} edges."
             )
 
+            if self._security.get():
+                self._log_message("[INFO] Annotating security group rules...")
+                annotate_security_rules(graph)
+
+            if self._summary.get():
+                summary = generate_summary(filtered, graph)
+                self._log_message(summary)
+
             self._log_message("[INFO] Calculating layout...")
             positions = calculate_layout(graph)
 
-            self._log_message("[INFO] Rendering draw.io diagram...")
-            renderer = DrawioRenderer()
-            output_path = Path(output_dir) / "terrasketch_output.drawio"
+            fmt = self._format.get()
+            if fmt == "mermaid":
+                self._log_message("[INFO] Rendering Mermaid diagram...")
+                renderer = MermaidRenderer()
+                output_path = Path(output_dir) / "terrasketch_output.md"
+            else:
+                self._log_message("[INFO] Rendering draw.io diagram...")
+                renderer = DrawioRenderer()
+                output_path = Path(output_dir) / "terrasketch_output.drawio"
             result = renderer.render(graph, positions, output_path)
 
             self._log_message(f"[SUCCESS] Diagram saved to: {result}")
