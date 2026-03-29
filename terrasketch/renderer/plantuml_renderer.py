@@ -1,0 +1,226 @@
+"""PlantUMLダイアグラムレンダラー。
+
+リソースグラフからPlantUMLコンポーネント図構文を生成する。
+PlantUMLサーバーやCLIでPNG/SVG画像に変換可能。
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+import networkx as nx
+
+from terrasketch.parser.state_parser import Resource
+
+
+# リソースタイプごとのPlantUMLステレオタイプとアイコン
+_STEREOTYPE_MAP: dict[str, str] = {
+    "aws_vpc": "<<VPC>>",
+    "aws_subnet": "<<Subnet>>",
+    "aws_instance": "<<EC2>>",
+    "aws_security_group": "<<SecurityGroup>>",
+    "aws_s3_bucket": "<<S3>>",
+    "aws_lambda_function": "<<Lambda>>",
+    "aws_db_instance": "<<RDS>>",
+    "aws_lb": "<<ELB>>",
+    "aws_alb": "<<ALB>>",
+    "aws_ecs_cluster": "<<ECS>>",
+    "aws_ecs_service": "<<ECS>>",
+    "aws_dynamodb_table": "<<DynamoDB>>",
+    "aws_cloudfront_distribution": "<<CloudFront>>",
+    "aws_route53_zone": "<<Route53>>",
+    "aws_internet_gateway": "<<IGW>>",
+    "aws_nat_gateway": "<<NAT>>",
+    "aws_route_table": "<<RouteTable>>",
+    "azurerm_virtual_network": "<<VNet>>",
+    "azurerm_subnet": "<<Subnet>>",
+    "azurerm_linux_virtual_machine": "<<VM>>",
+    "azurerm_windows_virtual_machine": "<<VM>>",
+    "azurerm_network_security_group": "<<NSG>>",
+    "azurerm_resource_group": "<<ResourceGroup>>",
+    "azurerm_storage_account": "<<Storage>>",
+    "azurerm_kubernetes_cluster": "<<AKS>>",
+}
+
+# リソースタイプごとのPlantUML色
+_COLOR_MAP: dict[str, str] = {
+    "vpc": "#E8F5E9",
+    "subnet": "#E3F2FD",
+    "compute": "#FFF3E0",
+    "security": "#FCE4EC",
+    "storage": "#F3E5F5",
+    "network": "#FFF8E1",
+    "database": "#E8EAF6",
+}
+
+
+def _sanitize_id(address: str) -> str:
+    """リソースアドレスを有効なPlantUML識別子に変換する。"""
+    return re.sub(r"[^a-zA-Z0-9_]", "_", address)
+
+
+def _get_stereotype(resource_type: str) -> str:
+    """リソースタイプに対応するPlantUMLステレオタイプを取得する。"""
+    return _STEREOTYPE_MAP.get(resource_type, "<<Resource>>")
+
+
+def _get_color(resource_type: str) -> str:
+    """リソースタイプに対応する背景色を取得する。"""
+    if "vpc" in resource_type or "virtual_network" in resource_type:
+        return _COLOR_MAP["vpc"]
+    if "subnet" in resource_type:
+        return _COLOR_MAP["subnet"]
+    if any(k in resource_type for k in ("instance", "virtual_machine", "lambda", "ecs")):
+        return _COLOR_MAP["compute"]
+    if any(k in resource_type for k in ("security_group", "network_security", "firewall")):
+        return _COLOR_MAP["security"]
+    if any(k in resource_type for k in ("s3", "storage", "ebs")):
+        return _COLOR_MAP["storage"]
+    if any(k in resource_type for k in ("lb", "alb", "gateway", "route")):
+        return _COLOR_MAP["network"]
+    if any(k in resource_type for k in ("db_instance", "dynamodb", "rds", "sql")):
+        return _COLOR_MAP["database"]
+    return "#FFFFFF"
+
+
+class PlantUMLRenderer:
+    """TerraformリソースグラフをPlantUMLコンポーネント図としてレンダリングする。"""
+
+    def render(
+        self,
+        graph: nx.DiGraph,
+        positions: dict[str, tuple[float, float]],
+        output_path: str | Path,
+    ) -> Path:
+        """グラフをPlantUMLファイルとしてレンダリングする。
+
+        Args:
+            graph: リソース依存関係グラフ。
+            positions: ノード座標（PlantUMLでは自動レイアウトのため参考情報）。
+            output_path: 出力.pumlファイルのパス。
+
+        Returns:
+            書き出されたPlantUMLファイルのPath。
+        """
+        output_path = Path(output_path).with_suffix(".puml")
+        lines: list[str] = []
+        lines.append("@startuml TerraSketch")
+        lines.append("")
+        lines.append("' TerraSketchにより自動生成されたPlantUMLダイアグラム")
+        lines.append("skinparam componentStyle rectangle")
+        lines.append("skinparam defaultTextAlignment center")
+        lines.append("skinparam shadowing false")
+        lines.append("")
+
+        # VPC/VNetコンテナの階層構造を構築
+        container_types = {"aws_vpc", "azurerm_virtual_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet"}
+        vpc_children: dict[str, list[str]] = {}
+        subnet_children: dict[str, list[str]] = {}
+        emitted_nodes: set[str] = set()
+
+        for node_addr in graph.nodes:
+            data = graph.nodes[node_addr]
+            resource = data.get("resource")
+            if resource is None:
+                continue
+            if resource.type in container_types:
+                children = list(nx.descendants(graph, node_addr))
+                vpc_children[node_addr] = children
+            elif resource.type in subnet_types:
+                children = list(nx.descendants(graph, node_addr))
+                subnet_children[node_addr] = children
+
+        # VPC > Subnet > リソースの階層をpackageで出力
+        for vpc_addr in sorted(vpc_children.keys()):
+            vpc_data = graph.nodes[vpc_addr]
+            vpc_resource = vpc_data.get("resource")
+            if vpc_resource is None:
+                continue
+            color = _get_color(vpc_resource.type)
+            lines.append(
+                f'package "{vpc_resource.type} / {vpc_resource.name}" {color} {{'
+            )
+            emitted_nodes.add(vpc_addr)
+
+            # VPC内のSubnet
+            for subnet_addr in sorted(subnet_children.keys()):
+                if subnet_addr not in vpc_children.get(vpc_addr, []):
+                    continue
+                subnet_data = graph.nodes[subnet_addr]
+                subnet_resource = subnet_data.get("resource")
+                if subnet_resource is None:
+                    continue
+                sub_color = _get_color(subnet_resource.type)
+                lines.append(
+                    f'    package "{subnet_resource.type} / {subnet_resource.name}" {sub_color} {{'
+                )
+                emitted_nodes.add(subnet_addr)
+
+                # Subnet内のリソース
+                for child_addr in sorted(subnet_children[subnet_addr]):
+                    if child_addr in emitted_nodes:
+                        continue
+                    self._emit_component(graph, child_addr, lines, indent=8)
+                    emitted_nodes.add(child_addr)
+
+                lines.append("    }")
+
+            # VPC直下（Subnet外）のリソース
+            for child_addr in sorted(vpc_children[vpc_addr]):
+                if child_addr in emitted_nodes:
+                    continue
+                self._emit_component(graph, child_addr, lines, indent=4)
+                emitted_nodes.add(child_addr)
+
+            lines.append("}")
+            lines.append("")
+
+        # VPC外のリソース
+        for node_addr in sorted(graph.nodes):
+            if node_addr in emitted_nodes:
+                continue
+            self._emit_component(graph, node_addr, lines, indent=0)
+            emitted_nodes.add(node_addr)
+
+        lines.append("")
+
+        # エッジを出力（包含=実線、参照=破線で区別）
+        for source, target, edge_data in graph.edges(data=True):
+            src_id = _sanitize_id(source)
+            tgt_id = _sanitize_id(target)
+            relation_type = edge_data.get("relation_type", "contains")
+
+            if relation_type == "references":
+                lines.append(f"{src_id} ..> {tgt_id}")
+            else:
+                lines.append(f"{src_id} --> {tgt_id}")
+
+        lines.append("")
+        lines.append("@enduml")
+        lines.append("")
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("\n".join(lines), encoding="utf-8")
+        return output_path
+
+    @staticmethod
+    def _emit_component(
+        graph: nx.DiGraph,
+        node_addr: str,
+        lines: list[str],
+        indent: int = 0,
+    ) -> None:
+        """単一リソースをPlantUMLコンポーネントとして出力する。"""
+        data = graph.nodes[node_addr]
+        resource = data.get("resource")
+        if resource is None:
+            return
+        node_id = _sanitize_id(node_addr)
+        stereotype = _get_stereotype(resource.type)
+        color = _get_color(resource.type)
+        pad = " " * indent
+        lines.append(
+            f'{pad}component "{resource.type}\\n{resource.name}" as {node_id} {stereotype} {color}'
+        )

@@ -26,15 +26,17 @@ from terrasketch.layout.engine import calculate_layout
 from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
+from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
 
 
 def generate(
-    state_path: str,
+    state_path: str | None,
     provider: str,
     output_dir: str,
     output_format: str = "drawio",
     show_security: bool = False,
     show_summary: bool = False,
+    hcl_path: str | None = None,
 ) -> Path:
     """構成図生成パイプライン全体を実行する。
 
@@ -42,15 +44,26 @@ def generate(
         state_path: Terraform state JSONファイルのパス。
         provider: クラウドプロバイダフィルタ（'aws' または 'azure'）。
         output_dir: 出力ファイルを書き出すディレクトリ。
-        output_format: 出力形式（'drawio' または 'mermaid'）。
+        output_format: 出力形式（'drawio'、'mermaid'、'plantuml'）。
         show_security: セキュリティグループルールの注釈を付与するか。
         show_summary: リソースサマリーを標準出力に表示するか。
+        hcl_path: Terraform HCLファイルまたはディレクトリのパス。
 
     Returns:
         生成された出力ファイルのPath。
     """
-    logger.info("stateファイルを解析中: %s", state_path)
-    resources = parse_state(state_path)
+    if hcl_path:
+        from terrasketch.parser.hcl_parser import parse_hcl, parse_hcl_directory
+        hcl = Path(hcl_path)
+        if hcl.is_dir():
+            logger.info("HCLディレクトリを解析中: %s", hcl_path)
+            resources = parse_hcl_directory(hcl_path)
+        else:
+            logger.info("HCLファイルを解析中: %s", hcl_path)
+            resources = parse_hcl(hcl_path)
+    else:
+        logger.info("stateファイルを解析中: %s", state_path)
+        resources = parse_state(state_path)
     logger.info("%d件のリソースを検出。", len(resources))
 
     # プロバイダでフィルタリング
@@ -88,6 +101,10 @@ def generate(
         logger.info("Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.md")
+    elif output_format == "plantuml":
+        logger.info("PlantUMLダイアグラムをレンダリング中...")
+        renderer = PlantUMLRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.puml")
     else:
         logger.info("draw.ioダイアグラムをレンダリング中...")
         renderer = DrawioRenderer()
@@ -120,7 +137,10 @@ def main() -> None:
         "generate", help="Terraform stateファイルから構成図を生成"
     )
     gen_parser.add_argument(
-        "--state", required=True, help="Terraform state JSONファイルのパス"
+        "--state", help="Terraform state JSONファイルのパス"
+    )
+    gen_parser.add_argument(
+        "--hcl", help="Terraform HCLファイルまたはディレクトリのパス"
     )
     gen_parser.add_argument(
         "--provider",
@@ -135,7 +155,7 @@ def main() -> None:
     )
     gen_parser.add_argument(
         "--format",
-        choices=["drawio", "mermaid"],
+        choices=["drawio", "mermaid", "plantuml"],
         default="drawio",
         help="出力形式（デフォルト: drawio）",
     )
@@ -164,13 +184,16 @@ def main() -> None:
     _setup_logging(getattr(args, "verbose", False))
 
     if args.command == "generate":
+        if not args.state and not args.hcl:
+            gen_parser.error("--state または --hcl のいずれかを指定してください。")
         generate(
-            args.state,
-            args.provider,
-            args.output,
+            state_path=args.state,
+            provider=args.provider,
+            output_dir=args.output,
             output_format=args.format,
             show_security=args.security,
             show_summary=args.summary,
+            hcl_path=args.hcl,
         )
     elif args.command == "gui":
         from terrasketch.gui.app import TerraSketchApp

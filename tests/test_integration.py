@@ -8,6 +8,7 @@ from terrasketch.layout.engine import calculate_layout
 from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
+from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
 
 
 SAMPLE_STATE = Path(__file__).parent.parent / "samples" / "sample_state.json"
@@ -46,6 +47,21 @@ def test_full_pipeline_mermaid(tmp_path):
     assert output.exists()
     content = output.read_text(encoding="utf-8")
     assert "flowchart TD" in content
+    assert "-->" in content
+
+
+def test_full_pipeline_plantuml(tmp_path):
+    """PlantUML出力の全パイプラインが正常に完了することを確認。"""
+    resources = parse_state(SAMPLE_STATE)
+    graph = build_graph(resources)
+    positions = calculate_layout(graph)
+
+    renderer = PlantUMLRenderer()
+    output = renderer.render(graph, positions, tmp_path / "out.puml")
+    assert output.exists()
+    content = output.read_text(encoding="utf-8")
+    assert "@startuml" in content
+    assert "aws_vpc" in content
     assert "-->" in content
 
 

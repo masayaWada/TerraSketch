@@ -9,6 +9,7 @@ import pytest
 from terrasketch.parser.state_parser import Resource
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
+from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
 
 
 def _build_test_graph():
@@ -99,3 +100,120 @@ def test_drawio_empty_graph(tmp_path):
     assert result.exists()
     tree = ET.parse(str(result))
     assert tree.getroot().tag == "mxfile"
+
+
+def test_drawio_edge_types(tmp_path):
+    """draw.ioでエッジタイプに応じたスタイルが適用されることを確認。"""
+    graph = _build_test_graph()
+    # 包含エッジにrelation_typeを設定
+    for u, v in graph.edges:
+        graph.edges[u, v]["relation_type"] = "contains"
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = DrawioRenderer()
+    result = renderer.render(graph, positions, tmp_path / "edge_types.drawio")
+    content = result.read_text(encoding="utf-8")
+    # 包含エッジ��緑色
+    assert "strokeColor=#2e7d32" in content
+
+
+def test_drawio_tooltip(tmp_path):
+    """draw.ioノードにツールチップ属性が含まれることを確認。"""
+    graph = nx.DiGraph()
+    ec2 = Resource(
+        id="i-1", type="aws_instance", name="web", provider="aws",
+        attributes={"id": "i-1", "instance_type": "t3.micro", "tags": {"Name": "web-server"}},
+    )
+    graph.add_node(ec2.address, resource=ec2, type=ec2.type, label=f"{ec2.type}\n{ec2.name}")
+    positions = {"aws_instance.web": (100, 100)}
+    renderer = DrawioRenderer()
+    result = renderer.render(graph, positions, tmp_path / "tooltip.drawio")
+    content = result.read_text(encoding="utf-8")
+    assert "tooltip=" in content
+    assert "instance_type" in content
+
+
+def test_mermaid_edge_types(tmp_path):
+    """Mermaidで参照エッジが破線矢印で出力されることを確認。"""
+    graph = nx.DiGraph()
+    vpc = Resource(id="vpc-1", type="aws_vpc", name="main", provider="aws", attributes={})
+    sg = Resource(id="sg-1", type="aws_security_group", name="web_sg", provider="aws", attributes={})
+    graph.add_node(vpc.address, resource=vpc, type=vpc.type, label=f"{vpc.type}\n{vpc.name}")
+    graph.add_node(sg.address, resource=sg, type=sg.type, label=f"{sg.type}\n{sg.name}")
+    graph.add_edge(vpc.address, sg.address, relation_type="references")
+    positions = {"aws_vpc.main": (100, 100), "aws_security_group.web_sg": (100, 300)}
+    renderer = MermaidRenderer()
+    result = renderer.render(graph, positions, tmp_path / "edge_types.md")
+    content = result.read_text(encoding="utf-8")
+    assert "-.->", content
+
+
+# --- PlantUMLレンダラーのテスト ---
+
+
+def test_plantuml_render_creates_file(tmp_path):
+    """PlantUMLレンダラーが.pumlファイル��作成することを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.puml")
+    assert result.exists()
+    assert result.suffix == ".puml"
+
+
+def test_plantuml_render_valid_structure(tmp_path):
+    """PlantUML出力に@startumlと@endumlが含まれることを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.puml")
+    content = result.read_text(encoding="utf-8")
+    assert "@startuml" in content
+    assert "@enduml" in content
+
+
+def test_plantuml_render_contains_nodes(tmp_path):
+    """PlantUML出力にリソースノードが含まれることを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.puml")
+    content = result.read_text(encoding="utf-8")
+    assert "aws_vpc" in content
+    assert "aws_subnet" in content
+    assert "-->" in content
+
+
+def test_plantuml_vpc_package(tmp_path):
+    """PlantUML出力でVPCがpackageとして描画されることを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.puml")
+    content = result.read_text(encoding="utf-8")
+    assert "package" in content
+
+
+def test_plantuml_edge_types(tmp_path):
+    """PlantUML出力で参照エッジが破線矢印で描画されることを確認。"""
+    graph = nx.DiGraph()
+    vpc = Resource(id="vpc-1", type="aws_vpc", name="main", provider="aws", attributes={})
+    sg = Resource(id="sg-1", type="aws_security_group", name="web_sg", provider="aws", attributes={})
+    graph.add_node(vpc.address, resource=vpc, type=vpc.type, label=f"{vpc.type}\n{vpc.name}")
+    graph.add_node(sg.address, resource=sg, type=sg.type, label=f"{sg.type}\n{sg.name}")
+    graph.add_edge(vpc.address, sg.address, relation_type="references")
+    positions = {"aws_vpc.main": (100, 100), "aws_security_group.web_sg": (100, 300)}
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, positions, tmp_path / "edge_types.puml")
+    content = result.read_text(encoding="utf-8")
+    assert "..>" in content
+
+
+def test_plantuml_empty_graph(tmp_path):
+    """空のグラフでも有効なPlantUMLファイルが生成されることを確認。"""
+    graph = nx.DiGraph()
+    renderer = PlantUMLRenderer()
+    result = renderer.render(graph, {}, tmp_path / "empty.puml")
+    assert result.exists()
+    content = result.read_text(encoding="utf-8")
+    assert "@startuml" in content
+    assert "@enduml" in content
