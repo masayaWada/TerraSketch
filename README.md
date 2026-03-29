@@ -163,6 +163,7 @@ Terraform State JSON / HCL ファイル
 - `docs/architecture.md` — アーキテクチャ設計書
 - `docs/data-flow.md` — データフロー詳細
 - `docs/extension-guide.md` — 拡張ガイド
+- `docs/roadmap.md` — 機能拡張ロードマップ
 
 ## 対応リソース
 
