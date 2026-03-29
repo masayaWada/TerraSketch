@@ -1,7 +1,7 @@
-"""Security group rule visualization.
+"""セキュリティグループルールの可視化。
 
-Extracts security group rules from resource attributes and annotates
-graph edges with human-readable rule summaries.
+リソース属性からセキュリティグループのルールを抽出し、
+グラフのエッジやノードに人間が読める形式のルールサマリーを付与する。
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from terrasketch.parser.state_parser import Resource
 
 
 def annotate_security_rules(graph: nx.DiGraph) -> nx.DiGraph:
-    """Annotate graph edges with security group rule information.
+    """グラフにセキュリティグループのルール情報を付与する。
 
-    For each security group node, extracts ingress/egress rules and
-    adds them as labels on the edges connecting the SG to other resources.
+    各セキュリティグループノードからingress/egressルールを抽出し、
+    ノードラベルにルールサマリーを追加する。
 
     Args:
-        graph: The resource dependency graph (modified in place).
+        graph: リソース依存関係グラフ（インプレースで変更）。
 
     Returns:
-        The same graph with annotated edge labels.
+        ルール情報が付与された同一のグラフ。
     """
     for node_addr in list(graph.nodes):
         data = graph.nodes[node_addr]
@@ -37,7 +37,7 @@ def annotate_security_rules(graph: nx.DiGraph) -> nx.DiGraph:
         rules_summary = _summarize_rules(resource)
         if rules_summary:
             graph.nodes[node_addr]["security_rules"] = rules_summary
-            # Add rule summary to the node label
+            # ノードラベルにルールサマリーを追加
             short_summary = _short_summary(resource)
             if short_summary:
                 current_label = graph.nodes[node_addr].get("label", "")
@@ -47,10 +47,10 @@ def annotate_security_rules(graph: nx.DiGraph) -> nx.DiGraph:
 
 
 def _summarize_rules(resource: Resource) -> list[dict[str, Any]]:
-    """Extract and summarize security rules from a resource's attributes."""
+    """リソースの属性からセキュリティルールを抽出・要約する。"""
     rules: list[dict[str, Any]] = []
 
-    # AWS Security Group
+    # AWSセキュリティグループ
     for direction in ("ingress", "egress"):
         raw_rules = resource.attributes.get(direction, [])
         if not isinstance(raw_rules, list):
@@ -85,7 +85,7 @@ def _summarize_rules(resource: Resource) -> list[dict[str, Any]]:
 
 
 def _short_summary(resource: Resource) -> str:
-    """Generate a short one-line summary of security rules."""
+    """セキュリティルールの1行サマリーを生成する。"""
     parts: list[str] = []
 
     for direction in ("ingress", "egress"):
@@ -110,7 +110,7 @@ def _short_summary(resource: Resource) -> str:
     if not parts:
         return ""
 
-    # Limit to first 3 rules to keep label readable
+    # ラベルの可読性を保つため、最大3ルールまで表示
     display = parts[:3]
     if len(parts) > 3:
         display.append(f"+{len(parts) - 3} more")
@@ -119,22 +119,22 @@ def _short_summary(resource: Resource) -> str:
 
 
 def get_rules_table(resource: Resource) -> str:
-    """Generate a detailed rules table as a string.
+    """詳細なルールテーブルを文字列として生成する。
 
-    Useful for tooltips or detailed views.
+    ツールチップや詳細ビューでの使用を想定。
 
     Args:
-        resource: A security group Resource.
+        resource: セキュリティグループのResource。
 
     Returns:
-        Formatted string table of all rules.
+        全ルールをフォーマットしたテーブル文字列。
     """
     rules = _summarize_rules(resource)
     if not rules:
-        return "No rules defined."
+        return "ルールが定義されていません。"
 
     lines = [
-        f"{'Dir':<8} {'Proto':<6} {'Ports':<12} {'CIDR':<20} {'Desc'}",
+        f"{'方向':<8} {'Proto':<6} {'ポート':<12} {'CIDR':<20} {'説明'}",
         "-" * 70,
     ]
 

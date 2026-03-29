@@ -1,7 +1,7 @@
-"""TerraSketch GUI application using Tkinter.
+"""TerraSketch GUIアプリケーション（Tkinter）。
 
-Provides a graphical interface for selecting state files, output directories,
-and providers, then runs the diagram generation pipeline in a background thread.
+stateファイル・出力ディレクトリ・プロバイダ選択のGUIを提供し、
+バックグラウンドスレッドで構成図生成パイプラインを実行する。
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 
 
 class LogRedirector:
-    """Redirects write calls to a Tkinter text widget."""
+    """書き込みをTkinterテキストウィジェットにリダイレクトする。"""
 
     def __init__(self, text_widget: scrolledtext.ScrolledText) -> None:
         self._widget = text_widget
@@ -41,12 +41,12 @@ class LogRedirector:
 
 
 class TerraSketchApp:
-    """Main GUI application window."""
+    """メインGUIアプリケーションウィンドウ。"""
 
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("TerraSketch - Terraform Diagram Generator")
-        self.root.geometry("700x500")
+        self.root.title("TerraSketch - Terraform構成図生成ツール")
+        self.root.geometry("700x550")
         self.root.resizable(True, True)
 
         self._state_path = tk.StringVar()
@@ -59,33 +59,34 @@ class TerraSketchApp:
         self._build_ui()
 
     def _build_ui(self) -> None:
+        """UIコンポーネントを構築する。"""
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # State file selection
-        file_frame = ttk.LabelFrame(main_frame, text="State File", padding=5)
+        # stateファイル選択
+        file_frame = ttk.LabelFrame(main_frame, text="Stateファイル", padding=5)
         file_frame.pack(fill=tk.X, pady=(0, 5))
 
         ttk.Entry(file_frame, textvariable=self._state_path).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
-        ttk.Button(file_frame, text="Browse...", command=self._browse_state).pack(
+        ttk.Button(file_frame, text="参照...", command=self._browse_state).pack(
             side=tk.RIGHT
         )
 
-        # Output directory selection
-        out_frame = ttk.LabelFrame(main_frame, text="Output Directory", padding=5)
+        # 出力ディレクトリ選択
+        out_frame = ttk.LabelFrame(main_frame, text="出力ディレクトリ", padding=5)
         out_frame.pack(fill=tk.X, pady=(0, 5))
 
         ttk.Entry(out_frame, textvariable=self._output_dir).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
-        ttk.Button(out_frame, text="Browse...", command=self._browse_output).pack(
+        ttk.Button(out_frame, text="参照...", command=self._browse_output).pack(
             side=tk.RIGHT
         )
 
-        # Provider selection
-        prov_frame = ttk.LabelFrame(main_frame, text="Provider", padding=5)
+        # プロバイダ選択
+        prov_frame = ttk.LabelFrame(main_frame, text="プロバイダ", padding=5)
         prov_frame.pack(fill=tk.X, pady=(0, 5))
 
         for provider in ("aws", "azure"):
@@ -94,8 +95,8 @@ class TerraSketchApp:
                 variable=self._provider,
             ).pack(side=tk.LEFT, padx=10)
 
-        # Output format selection
-        fmt_frame = ttk.LabelFrame(main_frame, text="Output Format", padding=5)
+        # 出力形式選択
+        fmt_frame = ttk.LabelFrame(main_frame, text="出力形式", padding=5)
         fmt_frame.pack(fill=tk.X, pady=(0, 5))
 
         for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid")):
@@ -104,25 +105,25 @@ class TerraSketchApp:
                 variable=self._format,
             ).pack(side=tk.LEFT, padx=10)
 
-        # Options
-        opts_frame = ttk.LabelFrame(main_frame, text="Options", padding=5)
+        # オプション
+        opts_frame = ttk.LabelFrame(main_frame, text="オプション", padding=5)
         opts_frame.pack(fill=tk.X, pady=(0, 5))
 
         ttk.Checkbutton(
-            opts_frame, text="Security Rules", variable=self._security,
+            opts_frame, text="セキュリティルール表示", variable=self._security,
         ).pack(side=tk.LEFT, padx=10)
         ttk.Checkbutton(
-            opts_frame, text="Show Summary", variable=self._summary,
+            opts_frame, text="サマリー表示", variable=self._summary,
         ).pack(side=tk.LEFT, padx=10)
 
-        # Execute button
+        # 実行ボタン
         self._run_btn = ttk.Button(
-            main_frame, text="Generate Diagram", command=self._run
+            main_frame, text="構成図を生成", command=self._run
         )
         self._run_btn.pack(pady=5)
 
-        # Log area
-        log_frame = ttk.LabelFrame(main_frame, text="Log", padding=5)
+        # ログ表示エリア
+        log_frame = ttk.LabelFrame(main_frame, text="ログ", padding=5)
         log_frame.pack(fill=tk.BOTH, expand=True)
 
         self._log = scrolledtext.ScrolledText(
@@ -131,33 +132,37 @@ class TerraSketchApp:
         self._log.pack(fill=tk.BOTH, expand=True)
 
     def _browse_state(self) -> None:
+        """stateファイル選択ダイアログを表示する。"""
         path = filedialog.askopenfilename(
-            title="Select Terraform State JSON",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Terraform State JSONを選択",
+            filetypes=[("JSONファイル", "*.json"), ("すべてのファイル", "*.*")],
         )
         if path:
             self._state_path.set(path)
 
     def _browse_output(self) -> None:
-        path = filedialog.askdirectory(title="Select Output Directory")
+        """出力ディレクトリ選択ダイアログを表示する。"""
+        path = filedialog.askdirectory(title="出力ディレクトリを選択")
         if path:
             self._output_dir.set(path)
 
     def _log_message(self, msg: str) -> None:
+        """ログエリアにメッセージを追加する。"""
         self._log.configure(state=tk.NORMAL)
         self._log.insert(tk.END, msg + "\n")
         self._log.see(tk.END)
         self._log.configure(state=tk.DISABLED)
 
     def _run(self) -> None:
+        """構成図生成をバックグラウンドスレッドで開始する。"""
         state_path = self._state_path.get().strip()
         output_dir = self._output_dir.get().strip()
 
         if not state_path:
-            self._log_message("[ERROR] Please select a state file.")
+            self._log_message("[ERROR] stateファイルを選択してください。")
             return
         if not output_dir:
-            self._log_message("[ERROR] Please select an output directory.")
+            self._log_message("[ERROR] 出力ディレクトリを選択してください。")
             return
 
         self._run_btn.configure(state=tk.DISABLED)
@@ -167,10 +172,11 @@ class TerraSketchApp:
         thread.start()
 
     def _generate(self, state_path: str, output_dir: str) -> None:
+        """構成図生成パイプラインを実行する（バックグラウンドスレッド）。"""
         try:
-            self._log_message("[INFO] Parsing state file...")
+            self._log_message("[INFO] stateファイルを解析中...")
             resources = parse_state(state_path)
-            self._log_message(f"[INFO] Found {len(resources)} resources.")
+            self._log_message(f"[INFO] {len(resources)}件のリソースを検出。")
 
             provider = self._provider.get()
             prefix_map = {"aws": "aws_", "azure": "azurerm_"}
@@ -178,46 +184,46 @@ class TerraSketchApp:
             if prefix:
                 filtered = [r for r in resources if r.type.startswith(prefix)]
                 self._log_message(
-                    f"[INFO] Filtered to {len(filtered)} {provider.upper()} resources."
+                    f"[INFO] {provider.upper()}リソース{len(filtered)}件にフィルタ。"
                 )
             else:
                 filtered = resources
 
-            self._log_message("[INFO] Building dependency graph...")
+            self._log_message("[INFO] 依存関係グラフを構築中...")
             graph = build_graph(filtered)
             self._log_message(
-                f"[INFO] Graph: {graph.number_of_nodes()} nodes, "
-                f"{graph.number_of_edges()} edges."
+                f"[INFO] グラフ: {graph.number_of_nodes()}ノード, "
+                f"{graph.number_of_edges()}エッジ。"
             )
 
             if self._security.get():
-                self._log_message("[INFO] Annotating security group rules...")
+                self._log_message("[INFO] セキュリティグループルールを注釈中...")
                 annotate_security_rules(graph)
 
             if self._summary.get():
                 summary = generate_summary(filtered, graph)
                 self._log_message(summary)
 
-            self._log_message("[INFO] Calculating layout...")
+            self._log_message("[INFO] レイアウトを計算中...")
             positions = calculate_layout(graph)
 
             fmt = self._format.get()
             if fmt == "mermaid":
-                self._log_message("[INFO] Rendering Mermaid diagram...")
+                self._log_message("[INFO] Mermaidダイアグラムをレンダリング中...")
                 renderer = MermaidRenderer()
                 output_path = Path(output_dir) / "terrasketch_output.md"
             else:
-                self._log_message("[INFO] Rendering draw.io diagram...")
+                self._log_message("[INFO] draw.ioダイアグラムをレンダリング中...")
                 renderer = DrawioRenderer()
                 output_path = Path(output_dir) / "terrasketch_output.drawio"
             result = renderer.render(graph, positions, output_path)
 
-            self._log_message(f"[SUCCESS] Diagram saved to: {result}")
+            self._log_message(f"[SUCCESS] 構成図を保存しました: {result}")
         except Exception as e:
             self._log_message(f"[ERROR] {e}")
         finally:
             self.root.after(0, lambda: self._run_btn.configure(state=tk.NORMAL))
 
     def run(self) -> None:
-        """Start the Tkinter main loop."""
+        """Tkinterメインループを開始する。"""
         self.root.mainloop()

@@ -1,7 +1,7 @@
-"""Graph builder for Terraform resources.
+"""Terraformリソースのグラフビルダー。
 
-Constructs a directed graph (DiGraph) representing the relationships
-between Terraform resources based on attribute references.
+リソース間の属性参照に基づいて、依存関係を表す
+有向グラフ（DiGraph）を構築する。
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ import networkx as nx
 from terrasketch.parser.state_parser import Resource
 
 
-# Maps (resource_type, attribute_name) -> target resource type.
-# The attribute value is expected to be the ID of the target resource.
+# (リソースタイプ, 属性名) -> 参照先リソースタイプ のマッピング。
+# 属性値は参照先リソースのIDであることを想定。
 _AWS_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("aws_subnet", "vpc_id", "aws_vpc"),
     ("aws_instance", "subnet_id", "aws_subnet"),
@@ -33,7 +33,7 @@ _AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
 
 _ALL_RULES = _AWS_RELATIONSHIP_RULES + _AZURE_RELATIONSHIP_RULES
 
-# Load extended rules if available
+# 拡張ルールが利用可能であれば読み込む
 try:
     from terrasketch.mapping.extended_resources import (
         EXTENDED_AWS_RELATIONSHIP_RULES,
@@ -49,7 +49,7 @@ except ImportError:
 
 
 def _build_id_index(resources: list[Resource]) -> dict[str, Resource]:
-    """Build an index mapping resource IDs to Resource objects."""
+    """リソースIDからResourceオブジェクトへのインデックスを構築する。"""
     index: dict[str, Resource] = {}
     for r in resources:
         if r.id:
@@ -58,7 +58,7 @@ def _build_id_index(resources: list[Resource]) -> dict[str, Resource]:
 
 
 def _build_type_index(resources: list[Resource]) -> dict[str, list[Resource]]:
-    """Build an index mapping resource types to lists of Resources."""
+    """リソースタイプからResourceリストへのインデックスを構築する。"""
     index: dict[str, list[Resource]] = {}
     for r in resources:
         index.setdefault(r.type, []).append(r)
@@ -66,21 +66,21 @@ def _build_type_index(resources: list[Resource]) -> dict[str, list[Resource]]:
 
 
 def build_graph(resources: list[Resource]) -> nx.DiGraph:
-    """Build a directed graph of resource relationships.
+    """リソース間の依存関係を有向グラフとして構築する。
 
-    Edges point from parent to child (e.g., VPC -> Subnet -> EC2).
+    エッジは親から子への方向（例: VPC -> Subnet -> EC2）。
 
     Args:
-        resources: List of Resource objects from the parser.
+        resources: パーサーから取得したResourceオブジェクトのリスト。
 
     Returns:
-        A networkx DiGraph with resource addresses as node IDs.
+        リソースアドレスをノードIDとするnetworkx DiGraph。
     """
     graph = nx.DiGraph()
     id_index = _build_id_index(resources)
     type_index = _build_type_index(resources)
 
-    # Add all resources as nodes
+    # 全リソースをノードとして追加
     for r in resources:
         graph.add_node(
             r.address,
@@ -89,28 +89,28 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
             label=f"{r.type}\n{r.name}",
         )
 
-    # Apply relationship rules
+    # 関係ルールを適用
     for src_type, attr_name, tgt_type in _ALL_RULES:
         for src in type_index.get(src_type, []):
             attr_value = src.attributes.get(attr_name)
             if attr_value is None:
                 continue
 
-            # Handle both single values and lists
+            # 単一値とリストの両方に対応
             ref_ids = attr_value if isinstance(attr_value, list) else [attr_value]
 
             for ref_id in ref_ids:
                 if not isinstance(ref_id, str):
                     continue
 
-                # Try to find target by ID
+                # IDで参照先を検索
                 target = id_index.get(ref_id)
                 if target and target.type == tgt_type:
-                    # Edge from parent (target) to child (src)
+                    # 親（参照先）から子（参照元）へのエッジ
                     graph.add_edge(target.address, src.address)
                     continue
 
-                # Fallback: match by name for Azure resources that use names
+                # フォールバック: 名前で一致を試みる（Azure等で名前参照を使用する場合）
                 for candidate in type_index.get(tgt_type, []):
                     if ref_id in (candidate.name, candidate.attributes.get("name", "")):
                         graph.add_edge(candidate.address, src.address)

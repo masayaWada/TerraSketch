@@ -1,7 +1,7 @@
-"""Terraform state JSON parser.
+"""Terraform state JSON パーサー。
 
-Parses terraform state JSON (from `terraform show -json`) and extracts
-resources into structured Resource objects.
+`terraform show -json` で出力されたstate JSONを解析し、
+構造化されたResourceオブジェクトとしてリソースを抽出する。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import Any
 
 @dataclass
 class Resource:
-    """Represents a single Terraform resource extracted from state."""
+    """Terraform stateから抽出された単一リソースを表すデータクラス。"""
 
     id: str
     type: str
@@ -28,7 +28,7 @@ class Resource:
 
 
 def _extract_resources_from_module(module: dict[str, Any]) -> list[Resource]:
-    """Recursively extract resources from a module and its child modules."""
+    """モジュールおよび子モジュールからリソースを再帰的に抽出する。"""
     resources: list[Resource] = []
 
     for res in module.get("resources", []):
@@ -50,18 +50,18 @@ def _extract_resources_from_module(module: dict[str, Any]) -> list[Resource]:
 
 
 def parse_state(file_path: str | Path) -> list[Resource]:
-    """Parse a Terraform state JSON file and return a list of Resources.
+    """Terraform state JSONファイルを解析し、Resourceリストを返す。
 
     Args:
-        file_path: Path to the terraform state JSON file
-                   (output of `terraform show -json`).
+        file_path: Terraform state JSONファイルのパス
+                   （`terraform show -json` の出力）。
 
     Returns:
-        List of Resource objects extracted from the state.
+        stateから抽出されたResourceオブジェクトのリスト。
 
     Raises:
-        FileNotFoundError: If the state file does not exist.
-        ValueError: If the JSON structure is invalid or missing expected keys.
+        FileNotFoundError: stateファイルが存在しない場合。
+        ValueError: JSON構造が不正、または期待するキーが欠落している場合。
     """
     path = Path(file_path)
     if not path.exists():

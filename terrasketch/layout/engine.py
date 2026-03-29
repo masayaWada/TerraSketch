@@ -1,7 +1,7 @@
-"""Layout engine for positioning resource nodes.
+"""レイアウトエンジン - リソースノードの座標計算。
 
-Uses graphviz (via pygraphviz or pydot) to calculate hierarchical
-positions for the resource graph.
+有向グラフに対してトポロジカル層に基づく階層レイアウトを適用し、
+各ノードの(x, y)座標を算出する。
 """
 
 from __future__ import annotations
@@ -14,18 +14,18 @@ def calculate_layout(
     scale_x: float = 250.0,
     scale_y: float = 200.0,
 ) -> dict[str, tuple[float, float]]:
-    """Calculate (x, y) positions for each node in the graph.
+    """グラフの各ノードに対して(x, y)座標を計算する。
 
-    Uses a hierarchical layout based on topological layers for directed
-    graphs, with a spring layout fallback for cyclic or disconnected graphs.
+    DAG（有向非巡回グラフ）にはトポロジカル層ベースの階層レイアウトを適用。
+    巡回グラフや切断グラフにはグリッドレイアウトをフォールバックとして使用。
 
     Args:
-        graph: The resource dependency graph.
-        scale_x: Horizontal spacing multiplier.
-        scale_y: Vertical spacing multiplier.
+        graph: リソース依存関係グラフ。
+        scale_x: 水平方向の間隔倍率。
+        scale_y: 垂直方向の間隔倍率。
 
     Returns:
-        Dictionary mapping node address to (x, y) pixel coordinates.
+        ノードアドレスから(x, y)ピクセル座標へのマッピング辞書。
     """
     if len(graph.nodes) == 0:
         return {}
@@ -34,12 +34,12 @@ def calculate_layout(
         node = list(graph.nodes)[0]
         return {node: (100.0, 100.0)}
 
-    # Try hierarchical layout for DAGs
+    # DAGの場合は階層レイアウトを適用
     if nx.is_directed_acyclic_graph(graph):
         return _hierarchical_layout(graph, scale_x, scale_y)
 
-    # Fallback to spring layout
-    return _spring_layout(graph, scale_x, scale_y)
+    # フォールバック: グリッドレイアウト
+    return _grid_layout(graph, scale_x, scale_y)
 
 
 def _hierarchical_layout(
@@ -47,8 +47,8 @@ def _hierarchical_layout(
     scale_x: float,
     scale_y: float,
 ) -> dict[str, tuple[float, float]]:
-    """Assign positions based on topological layers."""
-    # Compute longest-path layering
+    """トポロジカル層に基づいて座標を割り当てる。"""
+    # 最長パスによる層分け
     layers: dict[str, int] = {}
     for node in nx.topological_sort(graph):
         preds = list(graph.predecessors(node))
@@ -57,12 +57,12 @@ def _hierarchical_layout(
         else:
             layers[node] = max(layers[p] for p in preds) + 1
 
-    # Group nodes by layer
+    # 層ごとにノードをグループ化
     layer_groups: dict[int, list[str]] = {}
     for node, layer in layers.items():
         layer_groups.setdefault(layer, []).append(node)
 
-    # Assign coordinates
+    # 座標を割り当て
     positions: dict[str, tuple[float, float]] = {}
     start_x = 100.0
     start_y = 100.0
@@ -77,7 +77,7 @@ def _hierarchical_layout(
             y = start_y + layer_idx * scale_y
             positions[node] = (x, y)
 
-    # Normalize so no negative coordinates
+    # 負の座標が出ないように正規化
     if positions:
         min_x = min(p[0] for p in positions.values())
         min_y = min(p[1] for p in positions.values())
@@ -91,15 +91,15 @@ def _hierarchical_layout(
     return positions
 
 
-def _spring_layout(
+def _grid_layout(
     graph: nx.DiGraph,
     scale_x: float,
     scale_y: float,
 ) -> dict[str, tuple[float, float]]:
-    """Fallback grid layout for non-DAG (cyclic) graphs.
+    """非DAG（巡回グラフ）用のグリッドレイアウト。
 
-    Arranges nodes in a simple grid pattern. This avoids a numpy
-    dependency that nx.spring_layout requires.
+    numpy依存を回避するため、nx.spring_layoutの代わりに
+    シンプルなグリッド配置を使用する。
     """
     import math
 

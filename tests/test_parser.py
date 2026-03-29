@@ -1,4 +1,4 @@
-"""Tests for the Terraform state parser."""
+"""Terraform stateパーサーのテスト。"""
 
 import json
 import tempfile
@@ -10,6 +10,7 @@ from terrasketch.parser.state_parser import Resource, parse_state
 
 
 def _write_state(tmp_path: Path, state: dict) -> Path:
+    """テスト用のstate JSONファイルを一時ディレクトリに書き出す。"""
     path = tmp_path / "state.json"
     path.write_text(json.dumps(state), encoding="utf-8")
     return path
@@ -17,6 +18,7 @@ def _write_state(tmp_path: Path, state: dict) -> Path:
 
 @pytest.fixture
 def sample_state(tmp_path):
+    """VPCとSubnetを含むサンプルstateのフィクスチャ。"""
     state = {
         "format_version": "1.0",
         "terraform_version": "1.7.0",
@@ -52,12 +54,14 @@ def sample_state(tmp_path):
 
 
 def test_parse_state_returns_resources(sample_state):
+    """パース結果がResourceオブジェクトのリストであることを確認。"""
     resources = parse_state(sample_state)
     assert len(resources) == 2
     assert all(isinstance(r, Resource) for r in resources)
 
 
 def test_parse_state_resource_fields(sample_state):
+    """各Resourceのフィールドが正しく抽出されていることを確認。"""
     resources = parse_state(sample_state)
     vpc = next(r for r in resources if r.type == "aws_vpc")
     assert vpc.name == "main"
@@ -67,11 +71,13 @@ def test_parse_state_resource_fields(sample_state):
 
 
 def test_parse_state_file_not_found():
+    """存在しないファイルパスでFileNotFoundErrorが発生することを確認。"""
     with pytest.raises(FileNotFoundError):
         parse_state("/nonexistent/path.json")
 
 
 def test_parse_state_invalid_json(tmp_path):
+    """'values'キーが欠落したJSONでValueErrorが発生することを確認。"""
     path = tmp_path / "bad.json"
     path.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="missing 'values'"):
@@ -79,6 +85,7 @@ def test_parse_state_invalid_json(tmp_path):
 
 
 def test_parse_state_missing_root_module(tmp_path):
+    """'root_module'キーが欠落したJSONでValueErrorが発生することを確認。"""
     path = tmp_path / "bad.json"
     path.write_text(json.dumps({"values": {}}), encoding="utf-8")
     with pytest.raises(ValueError, match="missing 'values.root_module'"):
@@ -86,6 +93,7 @@ def test_parse_state_missing_root_module(tmp_path):
 
 
 def test_parse_state_child_modules(tmp_path):
+    """子モジュール内のリソースも正しく抽出されることを確認。"""
     state = {
         "values": {
             "root_module": {

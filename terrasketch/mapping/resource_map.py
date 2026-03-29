@@ -1,6 +1,6 @@
-"""Resource mapping between Terraform types and draw.io shapes/styles.
+"""Terraformリソースタイプとdraw.ioシェイプ/スタイルのマッピング。
 
-Maps Terraform resource types to draw.io shape identifiers and visual styles.
+Terraformリソースタイプをdraw.ioのシェイプ識別子とビジュアルスタイルに対応付ける。
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 @dataclass
 class DrawioStyle:
-    """Visual style information for a draw.io node."""
+    """draw.ioノードのビジュアルスタイル情報。"""
 
     shape: str
     width: float = 60.0
@@ -18,7 +18,7 @@ class DrawioStyle:
     style: str = ""
 
 
-# AWS resource type -> draw.io style mapping
+# AWSリソースタイプ -> draw.ioスタイル マッピング
 _AWS_MAPPING: dict[str, DrawioStyle] = {
     "aws_vpc": DrawioStyle(
         shape="mxgraph.aws4.vpc",
@@ -62,7 +62,7 @@ _AWS_MAPPING: dict[str, DrawioStyle] = {
     ),
 }
 
-# Azure resource type -> draw.io style mapping
+# Azureリソースタイプ -> draw.ioスタイル マッピング
 _AZURE_MAPPING: dict[str, DrawioStyle] = {
     "azurerm_virtual_network": DrawioStyle(
         shape="mxgraph.azure.virtual_network",
@@ -96,7 +96,7 @@ _AZURE_MAPPING: dict[str, DrawioStyle] = {
     ),
 }
 
-# Default style for unmapped resources
+# 未マッピングリソース用のデフォルトスタイル
 _DEFAULT_STYLE = DrawioStyle(
     shape="rounded=1",
     width=120, height=60,
@@ -105,7 +105,7 @@ _DEFAULT_STYLE = DrawioStyle(
 
 
 def _load_extended() -> None:
-    """Lazy-load extended resource mappings on first miss."""
+    """初回ミス時に拡張リソースマッピングを遅延ロードする。"""
     global _extended_loaded
     if _extended_loaded:
         return
@@ -125,20 +125,20 @@ _extended_loaded = False
 
 
 def get_drawio_style(resource_type: str) -> DrawioStyle:
-    """Get the draw.io style for a Terraform resource type.
+    """Terraformリソースタイプに対応するdraw.ioスタイルを取得する。
 
     Args:
-        resource_type: Terraform resource type (e.g., 'aws_vpc').
+        resource_type: Terraformリソースタイプ（例: 'aws_vpc'）。
 
     Returns:
-        DrawioStyle with shape and style information.
+        シェイプとスタイル情報を含むDrawioStyle。
     """
     if resource_type in _AWS_MAPPING:
         return _AWS_MAPPING[resource_type]
     if resource_type in _AZURE_MAPPING:
         return _AZURE_MAPPING[resource_type]
 
-    # Try extended mappings
+    # 拡張マッピングを試行
     _load_extended()
     if resource_type in _AWS_MAPPING:
         return _AWS_MAPPING[resource_type]
@@ -149,13 +149,13 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
 
 
 def get_provider_from_type(resource_type: str) -> str:
-    """Infer the cloud provider from a Terraform resource type.
+    """Terraformリソースタイプからクラウドプロバイダを推定する。
 
     Args:
-        resource_type: Terraform resource type string.
+        resource_type: Terraformリソースタイプ文字列。
 
     Returns:
-        Provider identifier ('aws', 'azure', or 'unknown').
+        プロバイダ識別子（'aws', 'azure', または 'unknown'）。
     """
     if resource_type.startswith("aws_"):
         return "aws"

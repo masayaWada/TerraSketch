@@ -1,12 +1,12 @@
-"""TerraSketch CLI and GUI entry point.
+"""TerraSketch CLIおよびGUIエントリーポイント。
 
-Usage:
-    # CLI mode
+使用方法:
+    # CLIモード
     terrasketch generate --state state.json --provider aws
     terrasketch generate --state state.json --provider aws --format mermaid
     terrasketch generate --state state.json --provider aws --security --summary
 
-    # GUI mode
+    # GUIモード
     terrasketch gui
 """
 
@@ -33,111 +33,111 @@ def generate(
     show_security: bool = False,
     show_summary: bool = False,
 ) -> Path:
-    """Run the full diagram generation pipeline.
+    """構成図生成パイプライン全体を実行する。
 
     Args:
-        state_path: Path to the Terraform state JSON file.
-        provider: Cloud provider filter ('aws' or 'azure').
-        output_dir: Directory to write the output file.
-        output_format: Output format ('drawio' or 'mermaid').
-        show_security: Whether to annotate security group rules.
-        show_summary: Whether to print a resource summary.
+        state_path: Terraform state JSONファイルのパス。
+        provider: クラウドプロバイダフィルタ（'aws' または 'azure'）。
+        output_dir: 出力ファイルを書き出すディレクトリ。
+        output_format: 出力形式（'drawio' または 'mermaid'）。
+        show_security: セキュリティグループルールの注釈を付与するか。
+        show_summary: リソースサマリーを標準出力に表示するか。
 
     Returns:
-        Path to the generated output file.
+        生成された出力ファイルのPath。
     """
-    print(f"[INFO] Parsing state file: {state_path}")
+    print(f"[INFO] stateファイルを解析中: {state_path}")
     resources = parse_state(state_path)
-    print(f"[INFO] Found {len(resources)} resources.")
+    print(f"[INFO] {len(resources)}件のリソースを検出。")
 
-    # Filter by provider
+    # プロバイダでフィルタリング
     prefix_map = {"aws": "aws_", "azure": "azurerm_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
-        print(f"[INFO] Filtered to {len(resources)} {provider.upper()} resources.")
+        print(f"[INFO] {provider.upper()}リソース{len(resources)}件にフィルタ。")
 
     if not resources:
-        print("[WARN] No matching resources found. Output will be empty.")
+        print("[WARN] 該当リソースが見つかりません。出力は空になります。")
 
-    print("[INFO] Building dependency graph...")
+    print("[INFO] 依存関係グラフを構築中...")
     graph = build_graph(resources)
     print(
-        f"[INFO] Graph: {graph.number_of_nodes()} nodes, "
-        f"{graph.number_of_edges()} edges."
+        f"[INFO] グラフ: {graph.number_of_nodes()}ノード, "
+        f"{graph.number_of_edges()}エッジ。"
     )
 
     if show_security:
-        print("[INFO] Annotating security group rules...")
+        print("[INFO] セキュリティグループルールを注釈中...")
         annotate_security_rules(graph)
 
     if show_summary:
         summary = generate_summary(resources, graph)
         print(summary)
 
-    print("[INFO] Calculating layout...")
+    print("[INFO] レイアウトを計算中...")
     positions = calculate_layout(graph)
 
     output_path = Path(output_dir)
 
     if output_format == "mermaid":
-        print("[INFO] Rendering Mermaid diagram...")
+        print("[INFO] Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.md")
     else:
-        print("[INFO] Rendering draw.io diagram...")
+        print("[INFO] draw.ioダイアグラムをレンダリング中...")
         renderer = DrawioRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio")
 
-    print(f"[SUCCESS] Diagram saved to: {result}")
+    print(f"[SUCCESS] 構成図を保存しました: {result}")
     return result
 
 
 def main() -> None:
-    """CLI entry point."""
+    """CLIエントリーポイント。"""
     parser = argparse.ArgumentParser(
         prog="terrasketch",
-        description="TerraSketch - Generate draw.io diagrams from Terraform state",
+        description="TerraSketch - Terraform stateからdraw.io構成図を生成",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command", help="利用可能なコマンド")
 
-    # generate command
+    # generateコマンド
     gen_parser = subparsers.add_parser(
-        "generate", help="Generate a diagram from a Terraform state file"
+        "generate", help="Terraform stateファイルから構成図を生成"
     )
     gen_parser.add_argument(
-        "--state", required=True, help="Path to the Terraform state JSON file"
+        "--state", required=True, help="Terraform state JSONファイルのパス"
     )
     gen_parser.add_argument(
         "--provider",
         choices=["aws", "azure"],
         default="aws",
-        help="Cloud provider (default: aws)",
+        help="クラウドプロバイダ（デフォルト: aws）",
     )
     gen_parser.add_argument(
         "--output",
         default=".",
-        help="Output directory (default: current directory)",
+        help="出力ディレクトリ（デフォルト: カレントディレクトリ）",
     )
     gen_parser.add_argument(
         "--format",
         choices=["drawio", "mermaid"],
         default="drawio",
-        help="Output format (default: drawio)",
+        help="出力形式（デフォルト: drawio）",
     )
     gen_parser.add_argument(
         "--security",
         action="store_true",
-        help="Annotate security group rules on the diagram",
+        help="セキュリティグループルールを構成図に注釈",
     )
     gen_parser.add_argument(
         "--summary",
         action="store_true",
-        help="Print a resource summary to stdout",
+        help="リソースサマリーを標準出力に表示",
     )
 
-    # gui command
-    subparsers.add_parser("gui", help="Launch the graphical user interface")
+    # guiコマンド
+    subparsers.add_parser("gui", help="GUIを起動")
 
     args = parser.parse_args()
 

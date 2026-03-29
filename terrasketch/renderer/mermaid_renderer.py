@@ -1,8 +1,7 @@
-"""Mermaid diagram renderer.
+"""Mermaidダイアグラムレンダラー。
 
-Generates Mermaid flowchart syntax from the resource graph,
-which can be rendered in GitHub, GitLab, Notion, or any
-Mermaid-compatible viewer.
+リソースグラフからMermaid flowchart構文を生成する。
+GitHub、GitLab、Notion等のMermaid対応ビューアで表示可能。
 """
 
 from __future__ import annotations
@@ -15,33 +14,33 @@ import networkx as nx
 from terrasketch.parser.state_parser import Resource
 
 
-# Mermaid node shapes by resource type prefix
+# リソースタイプごとのMermaidノード形状
 _SHAPE_MAP: dict[str, tuple[str, str]] = {
-    "aws_vpc": ("[[", "]]"),           # subroutine (double bracket)
+    "aws_vpc": ("[[", "]]"),           # サブルーチン（二重括弧）
     "aws_subnet": ("[[", "]]"),
-    "aws_instance": ("[", "]"),        # rectangle
-    "aws_security_group": ("{{", "}}"),  # hexagon
-    "aws_s3_bucket": ("[(", ")]"),     # cylindrical
+    "aws_instance": ("[", "]"),        # 矩形
+    "aws_security_group": ("{{", "}}"),  # 六角形
+    "aws_s3_bucket": ("[(", ")]"),     # 円筒形
     "aws_db_instance": ("[(", ")]"),
-    "aws_lambda_function": (">", "]"), # asymmetric
-    "aws_lb": ("([", "])"),            # stadium
+    "aws_lambda_function": (">", "]"), # 非対称
+    "aws_lb": ("([", "])"),            # スタジアム形
 }
 
 _DEFAULT_SHAPE = ("[", "]")
 
 
 def _sanitize_id(address: str) -> str:
-    """Convert a resource address to a valid Mermaid node ID."""
+    """リソースアドレスを有効なMermaidノードIDに変換する。"""
     return re.sub(r"[^a-zA-Z0-9_]", "_", address)
 
 
 def _get_shape(resource_type: str) -> tuple[str, str]:
-    """Get the Mermaid shape brackets for a resource type."""
+    """リソースタイプに対応するMermaidの形状括弧を取得する。"""
     return _SHAPE_MAP.get(resource_type, _DEFAULT_SHAPE)
 
 
 class MermaidRenderer:
-    """Renders a Terraform resource graph as a Mermaid flowchart."""
+    """Terraformリソースグラフをmermaid flowchartとしてレンダリングする。"""
 
     def render(
         self,
@@ -49,22 +48,22 @@ class MermaidRenderer:
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
     ) -> Path:
-        """Render the graph as a Mermaid markdown file.
+        """グラフをMermaid markdownファイルとしてレンダリングする。
 
         Args:
-            graph: The resource dependency graph.
-            positions: Node positions (used for ordering, not pixel placement).
-            output_path: File path for the output .md file.
+            graph: リソース依存関係グラフ。
+            positions: ノード座標（並び順の参考として使用、ピクセル配置には非使用）。
+            output_path: 出力.mdファイルのパス。
 
         Returns:
-            Path to the written Mermaid file.
+            書き出されたMermaidファイルのPath。
         """
         output_path = Path(output_path).with_suffix(".md")
         lines: list[str] = []
         lines.append("```mermaid")
         lines.append("flowchart TD")
 
-        # Group nodes by provider for subgraph styling
+        # プロバイダ別にノードをグループ化（subgraphスタイリング用）
         provider_groups: dict[str, list[str]] = {}
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
@@ -75,7 +74,7 @@ class MermaidRenderer:
             provider = _detect_provider(resource.type)
             provider_groups.setdefault(provider, []).append(node_addr)
 
-        # Emit nodes grouped by provider
+        # プロバイダ別にノードを出力
         for provider, nodes in sorted(provider_groups.items()):
             if provider != "unknown":
                 lines.append(f"    subgraph {provider.upper()}")
@@ -94,7 +93,7 @@ class MermaidRenderer:
             if provider != "unknown":
                 lines.append("    end")
 
-        # Emit edges
+        # エッジを出力
         for source, target in graph.edges:
             src_id = _sanitize_id(source)
             tgt_id = _sanitize_id(target)
@@ -106,7 +105,7 @@ class MermaidRenderer:
             else:
                 lines.append(f"    {src_id} --> {tgt_id}")
 
-        # Style classes
+        # スタイルクラス定義
         lines.append("")
         lines.append("    classDef vpc fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px")
         lines.append("    classDef subnet fill:#e3f2fd,stroke:#1565c0,stroke-width:1px")
@@ -114,7 +113,7 @@ class MermaidRenderer:
         lines.append("    classDef security fill:#fce4ec,stroke:#b71c1c,stroke-width:1px")
         lines.append("    classDef storage fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px")
 
-        # Apply styles
+        # スタイルを各ノードに適用
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
             resource = data.get("resource")
@@ -134,6 +133,7 @@ class MermaidRenderer:
 
 
 def _detect_provider(resource_type: str) -> str:
+    """リソースタイプからプロバイダを判定する。"""
     if resource_type.startswith("aws_"):
         return "aws"
     if resource_type.startswith("azurerm_"):
@@ -142,7 +142,7 @@ def _detect_provider(resource_type: str) -> str:
 
 
 def _classify_resource(resource_type: str) -> str:
-    """Map resource type to a CSS class for Mermaid styling."""
+    """リソースタイプをMermaidスタイリング用のCSSクラスに分類する。"""
     if "vpc" in resource_type or "virtual_network" in resource_type:
         return "vpc"
     if "subnet" in resource_type:

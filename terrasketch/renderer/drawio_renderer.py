@@ -1,8 +1,8 @@
-"""draw.io XML renderer.
+"""draw.io XMLレンダラー。
 
-Generates a draw.io-compatible XML file (.drawio) from the resource graph
-and layout positions. The generated file can be opened directly in
-draw.io (diagrams.net) or consumed by a draw.io MCP server.
+リソースグラフとレイアウト座標からdraw.io互換のXMLファイル（.drawio）を生成する。
+生成されたファイルはdraw.io（diagrams.net）で直接開くか、
+draw.io MCPサーバーで利用できる。
 """
 
 from __future__ import annotations
@@ -17,12 +17,13 @@ from terrasketch.parser.state_parser import Resource
 
 
 class DrawioRenderer:
-    """Renders a Terraform resource graph as a draw.io XML file."""
+    """Terraformリソースグラフをdraw.io XMLファイルとしてレンダリングする。"""
 
     def __init__(self) -> None:
-        self._cell_id_counter = 2  # 0 and 1 reserved by draw.io
+        self._cell_id_counter = 2  # 0と1はdraw.ioが予約
 
     def _next_id(self) -> str:
+        """次のユニークなセルIDを生成する。"""
         cid = str(self._cell_id_counter)
         self._cell_id_counter += 1
         return cid
@@ -36,18 +37,18 @@ class DrawioRenderer:
         x: float,
         y: float,
     ) -> ET.Element:
-        """Create a draw.io node (mxCell) element.
+        """draw.ioノード（mxCell）要素を作成する。
 
         Args:
-            parent: Parent XML element to attach the cell to.
-            node_id: Unique cell ID.
-            label: Display label for the node.
-            style: DrawioStyle with visual properties.
-            x: X coordinate.
-            y: Y coordinate.
+            parent: セルを追加する親XML要素。
+            node_id: ユニークなセルID。
+            label: ノードの表示ラベル。
+            style: ビジュアルプロパティを持つDrawioStyle。
+            x: X座標。
+            y: Y座標。
 
         Returns:
-            The created mxCell element.
+            作成されたmxCell要素。
         """
         cell = ET.SubElement(parent, "mxCell")
         cell.set("id", node_id)
@@ -72,16 +73,16 @@ class DrawioRenderer:
         source_id: str,
         target_id: str,
     ) -> ET.Element:
-        """Create a draw.io edge (mxCell) element.
+        """draw.ioエッジ（mxCell）要素を作成する。
 
         Args:
-            parent: Parent XML element to attach the cell to.
-            edge_id: Unique cell ID for the edge.
-            source_id: Source node cell ID.
-            target_id: Target node cell ID.
+            parent: セルを追加する親XML要素。
+            edge_id: エッジのユニークなセルID。
+            source_id: ソースノードのセルID。
+            target_id: ターゲットノードのセルID。
 
         Returns:
-            The created mxCell edge element.
+            作成されたmxCellエッジ要素。
         """
         cell = ET.SubElement(parent, "mxCell")
         cell.set("id", edge_id)
@@ -106,7 +107,7 @@ class DrawioRenderer:
     def _get_container_origin(
         root: ET.Element, container_id: str
     ) -> tuple[float, float]:
-        """Get the (x, y) origin of a container cell."""
+        """コンテナセルの(x, y)原点を取得する。"""
         for cell in root.iter("mxCell"):
             if cell.get("id") == container_id:
                 geo = cell.find("mxGeometry")
@@ -123,19 +124,19 @@ class DrawioRenderer:
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
     ) -> Path:
-        """Render the complete graph as a draw.io XML file.
+        """グラフ全体をdraw.io XMLファイルとしてレンダリングする。
 
         Args:
-            graph: The resource dependency graph with node data.
-            positions: Mapping of node address -> (x, y) coordinates.
-            output_path: File path for the output .drawio file.
+            graph: ノードデータを持つリソース依存関係グラフ。
+            positions: ノードアドレスから(x, y)座標へのマッピング。
+            output_path: 出力.drawioファイルのパス。
 
         Returns:
-            Path to the written .drawio file.
+            書き出された.drawioファイルのPath。
         """
         output_path = Path(output_path)
 
-        # Build XML structure
+        # XML構造を構築
         mxfile = ET.Element("mxfile")
         mxfile.set("host", "terrasketch")
         mxfile.set("type", "device")
@@ -161,17 +162,17 @@ class DrawioRenderer:
 
         root = ET.SubElement(mx_graph_model, "root")
 
-        # Required root cells for draw.io
+        # draw.ioが必要とするルートセル
         cell0 = ET.SubElement(root, "mxCell")
         cell0.set("id", "0")
         cell1 = ET.SubElement(root, "mxCell")
         cell1.set("id", "1")
         cell1.set("parent", "0")
 
-        # Map node addresses to cell IDs
+        # ノードアドレスからセルIDへのマッピング
         node_cell_ids: dict[str, str] = {}
 
-        # Build container groups (VPC contains its children)
+        # コンテナグループを構築（VPCが子リソースを包含）
         container_types = {"aws_vpc", "azurerm_virtual_network"}
         container_children: dict[str, list[str]] = {}
         contained_nodes: set[str] = set()
@@ -184,7 +185,7 @@ class DrawioRenderer:
                 container_children[node_addr] = children
                 contained_nodes.update(children)
 
-        # Create container nodes (VPC as bounding boxes)
+        # コンテナノードを作成（VPCをバウンディングボックスとして描画）
         container_cell_ids: dict[str, str] = {}
         for container_addr, children in container_children.items():
             data = graph.nodes[container_addr]
@@ -192,7 +193,7 @@ class DrawioRenderer:
             if resource is None:
                 continue
 
-            # Calculate bounding box from children positions
+            # 子ノードの位置からバウンディングボックスを計算
             child_positions = [
                 positions.get(c, (100.0, 100.0)) for c in children
             ]
@@ -229,7 +230,7 @@ class DrawioRenderer:
                 geo.set("height", str(round(max_y - min_y)))
                 geo.set("as", "geometry")
 
-        # Create resource nodes
+        # リソースノードを作成
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
             resource: Resource | None = data.get("resource")
@@ -237,7 +238,7 @@ class DrawioRenderer:
             if resource is None:
                 continue
 
-            # Skip if already created as a container
+            # コンテナとして既に作成済みならスキップ
             if node_addr in container_cell_ids:
                 continue
 
@@ -248,7 +249,7 @@ class DrawioRenderer:
             label = data.get("label", f"{resource.type}\n{resource.name}")
             x, y = positions.get(node_addr, (100.0, 100.0))
 
-            # Determine parent: either a container or the root
+            # 親を決定: コンテナ内ならコンテナ、それ以外はルート
             parent_id = "1"
             for container_addr, children in container_children.items():
                 if node_addr in children and container_addr in container_cell_ids:
@@ -264,7 +265,7 @@ class DrawioRenderer:
 
             geo = ET.SubElement(cell, "mxGeometry")
             if parent_id != "1":
-                # Use relative coordinates within container
+                # コンテナ内の相対座標を使用
                 container_geo = self._get_container_origin(
                     root, container_cell_ids.get(
                         next(ca for ca, ch in container_children.items()
@@ -280,7 +281,7 @@ class DrawioRenderer:
             geo.set("height", str(round(style.height)))
             geo.set("as", "geometry")
 
-        # Create edges
+        # エッジを作成
         for source, target in graph.edges:
             src_cell = node_cell_ids.get(source)
             tgt_cell = node_cell_ids.get(target)
@@ -288,7 +289,7 @@ class DrawioRenderer:
                 edge_id = self._next_id()
                 self.create_edge(root, edge_id, src_cell, tgt_cell)
 
-        # Write to file
+        # ファイルに書き出し
         tree = ET.ElementTree(mxfile)
         ET.indent(tree, space="  ")
         output_path.parent.mkdir(parents=True, exist_ok=True)

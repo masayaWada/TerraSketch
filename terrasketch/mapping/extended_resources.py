@@ -1,6 +1,6 @@
-"""Extended AWS and Azure resource mappings.
+"""AWS / Azure 拡張リソースマッピング。
 
-Provides draw.io styles for a wider range of cloud resources beyond the MVP set.
+MVP範囲を超えた幅広いクラウドリソースに対するdraw.ioスタイルを提供する。
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from terrasketch.mapping.resource_map import DrawioStyle
 
 
 EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
-    # Compute
+    # コンピューティング
     "aws_lambda_function": DrawioStyle(
         shape="mxgraph.aws4.lambda_function",
         width=60, height=60,
@@ -30,7 +30,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.auto_scaling2;",
     ),
-    # Storage
+    # ストレージ
     "aws_s3_bucket": DrawioStyle(
         shape="mxgraph.aws4.s3",
         width=60, height=60,
@@ -41,7 +41,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_block_store;",
     ),
-    # Database
+    # データベース
     "aws_db_instance": DrawioStyle(
         shape="mxgraph.aws4.rds",
         width=60, height=60,
@@ -57,7 +57,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elasticache;",
     ),
-    # Networking
+    # ネットワーキング
     "aws_lb": DrawioStyle(
         shape="mxgraph.aws4.application_load_balancer",
         width=60, height=60,
@@ -88,7 +88,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_ip_address;",
     ),
-    # Security / IAM
+    # セキュリティ / IAM
     "aws_iam_role": DrawioStyle(
         shape="mxgraph.aws4.role",
         width=60, height=60,
@@ -104,7 +104,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.kms;",
     ),
-    # Messaging
+    # メッセージング
     "aws_sqs_queue": DrawioStyle(
         shape="mxgraph.aws4.sqs",
         width=60, height=60,
@@ -115,7 +115,7 @@ EXTENDED_AWS_MAPPING: dict[str, DrawioStyle] = {
         width=60, height=60,
         style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;",
     ),
-    # Monitoring
+    # モニタリング
     "aws_cloudwatch_log_group": DrawioStyle(
         shape="mxgraph.aws4.cloudwatch",
         width=60, height=60,
@@ -161,7 +161,7 @@ EXTENDED_AZURE_MAPPING: dict[str, DrawioStyle] = {
     ),
 }
 
-# Extended relationship rules
+# 拡張リレーションシップルール
 EXTENDED_AWS_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("aws_lb", "subnets", "aws_subnet"),
     ("aws_alb", "subnets", "aws_subnet"),

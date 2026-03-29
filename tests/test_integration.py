@@ -1,4 +1,4 @@
-"""Integration test: full pipeline from sample state to output."""
+"""統合テスト: サンプルstateからの出力までの全パイプライン。"""
 
 from pathlib import Path
 
@@ -14,6 +14,7 @@ SAMPLE_STATE = Path(__file__).parent.parent / "samples" / "sample_state.json"
 
 
 def test_full_pipeline_drawio(tmp_path):
+    """draw.io出力の全パイプラインが正常に完了することを確認。"""
     resources = parse_state(SAMPLE_STATE)
     assert len(resources) == 6
 
@@ -35,6 +36,7 @@ def test_full_pipeline_drawio(tmp_path):
 
 
 def test_full_pipeline_mermaid(tmp_path):
+    """Mermaid出力の全パイプラインが正常に完了することを確認。"""
     resources = parse_state(SAMPLE_STATE)
     graph = build_graph(resources)
     positions = calculate_layout(graph)
@@ -48,9 +50,10 @@ def test_full_pipeline_mermaid(tmp_path):
 
 
 def test_provider_filtering(tmp_path):
+    """プロバイダフィルタリングが正しく機能することを確認。"""
     resources = parse_state(SAMPLE_STATE)
     aws_only = [r for r in resources if r.type.startswith("aws_")]
-    assert len(aws_only) == len(resources)  # sample is all AWS
+    assert len(aws_only) == len(resources)  # サンプルは全てAWSリソース
 
     graph = build_graph(aws_only)
     positions = calculate_layout(graph)
