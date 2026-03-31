@@ -47,6 +47,7 @@ class MermaidRenderer:
         graph: nx.DiGraph,
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
+        show_labels: bool = False,
     ) -> Path:
         """グラフをMermaid markdownファイルとしてレンダリングする。
 
@@ -54,6 +55,7 @@ class MermaidRenderer:
             graph: リソース依存関係グラフ。
             positions: ノード座標（並び順の参考として使用、ピクセル配置には非使用）。
             output_path: 出力.mdファイルのパス。
+            show_labels: エッジに接続属性名ラベルを表示するか。
 
         Returns:
             書き出されたMermaidファイルのPath。
@@ -164,7 +166,7 @@ class MermaidRenderer:
 
             edge_data = graph.edges[source, target]
             relation_type = edge_data.get("relation_type", "contains")
-            label = edge_data.get("label", "")
+            label = edge_data.get("attr_name", "") if show_labels else ""
 
             if relation_type == "references":
                 # 参照関係: 破線矢印

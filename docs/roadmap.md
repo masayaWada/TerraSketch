@@ -24,22 +24,22 @@
 
 ## フェーズ 1 — 品質・安定性（優先度: 高）
 
-- [ ] **1-1. ビューポート自動計算**
+- [x] **1-1. ビューポート自動計算**
   - 現状: draw.io のビューポートサイズが `dx="1422" dy="762"` にハードコード
   - 改善: 全ノード座標からバウンディングボックスを算出し `dx` / `dy` を動的設定
   - 対象: `terrasketch/renderer/drawio_renderer.py`
 
-- [ ] **1-2. GUI の PlantUML / HCL 対応**
+- [x] **1-2. GUI の PlantUML / HCL 対応**
   - 現状: GUI は draw.io / Mermaid のみ選択可能。PlantUML と HCL 入力は CLI 限定
   - 改善: 出力形式に PlantUML を追加、入力に HCL ファイル / ディレクトリ選択を追加
   - 対象: `terrasketch/gui/app.py`
 
-- [ ] **1-3. Subnet コンテナグルーピング（draw.io）**
+- [x] **1-3. Subnet コンテナグルーピング（draw.io）**
   - 現状: draw.io の VPC コンテナ内で Subnet はフラットなノードとして描画される
   - 改善: VPC コンテナ内に Subnet コンテナ（`container=1`）をネスト、2段階バウンディングボックス計算
   - 対象: `terrasketch/renderer/drawio_renderer.py`
 
-- [ ] **1-4. エッジラベル表示**
+- [x] **1-4. エッジラベル表示**
   - 現状: エッジに関係タイプ情報はあるが、接続属性名（`vpc_id` 等）が構成図から読み取れない
   - 改善: `build_graph()` でエッジに `attr_name` を付与、`--labels` オプションで表示切替
   - 対象: `terrasketch/graph/builder.py`, 各レンダラー, `terrasketch/main.py`

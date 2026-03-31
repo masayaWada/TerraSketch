@@ -168,6 +168,7 @@ class DrawioRenderer:
         graph: nx.DiGraph,
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
+        show_labels: bool = False,
     ) -> Path:
         """グラフ全体をdraw.io XMLファイルとしてレンダリングする。
 
@@ -175,6 +176,7 @@ class DrawioRenderer:
             graph: ノードデータを持つリソース依存関係グラフ。
             positions: ノードアドレスから(x, y)座標へのマッピング。
             output_path: 出力.drawioファイルのパス。
+            show_labels: エッジに接続属性名ラベルを表示するか。
 
         Returns:
             書き出された.drawioファイルのPath。
@@ -191,8 +193,7 @@ class DrawioRenderer:
         diagram.set("name", "TerraSketch")
 
         mx_graph_model = ET.SubElement(diagram, "mxGraphModel")
-        mx_graph_model.set("dx", "1422")
-        mx_graph_model.set("dy", "762")
+        # ビューポートサイズは全ノード配置後に動的設定するため、仮値を設定
         mx_graph_model.set("grid", "1")
         mx_graph_model.set("gridSize", "10")
         mx_graph_model.set("guides", "1")
@@ -217,63 +218,130 @@ class DrawioRenderer:
         # ノードアドレスからセルIDへのマッピング
         node_cell_ids: dict[str, str] = {}
 
-        # コンテナグループを構築（VPCが子リソースを包含）
-        container_types = {"aws_vpc", "azurerm_virtual_network"}
-        container_children: dict[str, list[str]] = {}
-        contained_nodes: set[str] = set()
+        # コンテナグループを構築（VPC > Subnet の2段階ネスト）
+        vpc_types = {"aws_vpc", "azurerm_virtual_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet"}
+
+        # VPCとSubnetの子ノードを収集
+        vpc_children: dict[str, list[str]] = {}
+        subnet_children: dict[str, list[str]] = {}
 
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
             resource = data.get("resource")
-            if resource and resource.type in container_types:
-                children = list(nx.descendants(graph, node_addr))
-                container_children[node_addr] = children
-                contained_nodes.update(children)
+            if resource is None:
+                continue
+            if resource.type in vpc_types:
+                vpc_children[node_addr] = list(nx.descendants(graph, node_addr))
+            elif resource.type in subnet_types:
+                subnet_children[node_addr] = list(nx.descendants(graph, node_addr))
 
-        # コンテナノードを作成（VPCをバウンディングボックスとして描画）
-        container_cell_ids: dict[str, str] = {}
-        for container_addr, children in container_children.items():
-            data = graph.nodes[container_addr]
+        # VPCコンテナを作成
+        vpc_cell_ids: dict[str, str] = {}
+        subnet_cell_ids: dict[str, str] = {}
+
+        vpc_style = (
+            "rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;"
+            "strokeColor=#2e7d32;strokeWidth=2;dashed=1;"
+            "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
+            "fontSize=14;fontStyle=1;container=1;collapsible=0;"
+        )
+        subnet_style = (
+            "rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;"
+            "strokeColor=#1565c0;strokeWidth=1;dashed=1;"
+            "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
+            "fontSize=12;fontStyle=1;container=1;collapsible=0;"
+        )
+
+        for vpc_addr, children in vpc_children.items():
+            data = graph.nodes[vpc_addr]
             resource = data.get("resource")
             if resource is None:
                 continue
 
-            # 子ノードの位置からバウンディングボックスを計算
-            child_positions = [
-                positions.get(c, (100.0, 100.0)) for c in children
-            ]
-            container_pos = positions.get(container_addr, (100.0, 100.0))
-            all_pos = child_positions + [container_pos]
+            # 全子ノード（VPC自身含む）の位置からバウンディングボックスを計算
+            child_positions = [positions.get(c, (100.0, 100.0)) for c in children]
+            vpc_pos = positions.get(vpc_addr, (100.0, 100.0))
+            all_pos = child_positions + [vpc_pos]
 
-            if all_pos:
-                min_x = min(p[0] for p in all_pos) - 40
-                min_y = min(p[1] for p in all_pos) - 60
-                max_x = max(p[0] for p in all_pos) + 100
-                max_y = max(p[1] for p in all_pos) + 100
+            min_x = min(p[0] for p in all_pos) - 40
+            min_y = min(p[1] for p in all_pos) - 60
+            max_x = max(p[0] for p in all_pos) + 100
+            max_y = max(p[1] for p in all_pos) + 100
 
-                cell_id = self._next_id()
-                container_cell_ids[container_addr] = cell_id
-                node_cell_ids[container_addr] = cell_id
+            cell_id = self._next_id()
+            vpc_cell_ids[vpc_addr] = cell_id
+            node_cell_ids[vpc_addr] = cell_id
 
-                container_style = (
-                    "rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;"
-                    "strokeColor=#2e7d32;strokeWidth=2;dashed=1;"
-                    "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
-                    "fontSize=14;fontStyle=1;container=1;collapsible=0;"
-                )
-                cell = ET.SubElement(root, "mxCell")
-                cell.set("id", cell_id)
-                cell.set("value", f"{resource.type} / {resource.name}")
-                cell.set("style", container_style)
-                cell.set("vertex", "1")
-                cell.set("parent", "1")
+            cell = ET.SubElement(root, "mxCell")
+            cell.set("id", cell_id)
+            cell.set("value", f"{resource.type} / {resource.name}")
+            cell.set("style", vpc_style)
+            cell.set("vertex", "1")
+            cell.set("parent", "1")
 
-                geo = ET.SubElement(cell, "mxGeometry")
-                geo.set("x", str(round(min_x)))
-                geo.set("y", str(round(min_y)))
-                geo.set("width", str(round(max_x - min_x)))
-                geo.set("height", str(round(max_y - min_y)))
-                geo.set("as", "geometry")
+            geo = ET.SubElement(cell, "mxGeometry")
+            geo.set("x", str(round(min_x)))
+            geo.set("y", str(round(min_y)))
+            geo.set("width", str(round(max_x - min_x)))
+            geo.set("height", str(round(max_y - min_y)))
+            geo.set("as", "geometry")
+
+        # Subnetコンテナを作成（VPC内にネスト）
+        for subnet_addr, children in subnet_children.items():
+            data = graph.nodes[subnet_addr]
+            resource = data.get("resource")
+            if resource is None:
+                continue
+
+            # このSubnetが属するVPCを特定
+            parent_vpc_id = "1"
+            parent_vpc_addr = None
+            for vpc_addr, vpc_ch in vpc_children.items():
+                if subnet_addr in vpc_ch and vpc_addr in vpc_cell_ids:
+                    parent_vpc_id = vpc_cell_ids[vpc_addr]
+                    parent_vpc_addr = vpc_addr
+                    break
+
+            # 子ノードの位置からSubnetバウンディングボックスを計算
+            child_positions = [positions.get(c, (100.0, 100.0)) for c in children]
+            subnet_pos = positions.get(subnet_addr, (100.0, 100.0))
+            all_pos = child_positions + [subnet_pos]
+
+            min_x = min(p[0] for p in all_pos) - 30
+            min_y = min(p[1] for p in all_pos) - 50
+            max_x = max(p[0] for p in all_pos) + 90
+            max_y = max(p[1] for p in all_pos) + 90
+
+            # VPC内なら相対座標に変換
+            if parent_vpc_addr and parent_vpc_id != "1":
+                vpc_origin = self._get_container_origin(root, parent_vpc_id)
+                rel_min_x = min_x - vpc_origin[0]
+                rel_min_y = min_y - vpc_origin[1]
+            else:
+                rel_min_x = min_x
+                rel_min_y = min_y
+
+            cell_id = self._next_id()
+            subnet_cell_ids[subnet_addr] = cell_id
+            node_cell_ids[subnet_addr] = cell_id
+
+            cell = ET.SubElement(root, "mxCell")
+            cell.set("id", cell_id)
+            cell.set("value", f"{resource.type} / {resource.name}")
+            cell.set("style", subnet_style)
+            cell.set("vertex", "1")
+            cell.set("parent", parent_vpc_id)
+
+            geo = ET.SubElement(cell, "mxGeometry")
+            geo.set("x", str(round(rel_min_x)))
+            geo.set("y", str(round(rel_min_y)))
+            geo.set("width", str(round(max_x - min_x)))
+            geo.set("height", str(round(max_y - min_y)))
+            geo.set("as", "geometry")
+
+        # 全コンテナセルIDをまとめる
+        all_container_ids = {**vpc_cell_ids, **subnet_cell_ids}
 
         # リソースノードを作成
         for node_addr in graph.nodes:
@@ -284,7 +352,7 @@ class DrawioRenderer:
                 continue
 
             # コンテナとして既に作成済みならスキップ
-            if node_addr in container_cell_ids:
+            if node_addr in all_container_ids:
                 continue
 
             cell_id = self._next_id()
@@ -294,12 +362,24 @@ class DrawioRenderer:
             label = data.get("label", f"{resource.type}\n{resource.name}")
             x, y = positions.get(node_addr, (100.0, 100.0))
 
-            # 親を決定: コンテナ内ならコンテナ、それ以外はルート
+            # 親を決定: Subnetコンテナ内 > VPCコンテナ内 > ルート
             parent_id = "1"
-            for container_addr, children in container_children.items():
-                if node_addr in children and container_addr in container_cell_ids:
-                    parent_id = container_cell_ids[container_addr]
+            parent_container_id = None
+
+            # まずSubnetコンテナをチェック
+            for s_addr, s_children in subnet_children.items():
+                if node_addr in s_children and s_addr in subnet_cell_ids:
+                    parent_id = subnet_cell_ids[s_addr]
+                    parent_container_id = s_addr
                     break
+
+            # Subnetに属さない場合、VPCコンテナをチェック
+            if parent_container_id is None:
+                for v_addr, v_children in vpc_children.items():
+                    if node_addr in v_children and v_addr in vpc_cell_ids:
+                        parent_id = vpc_cell_ids[v_addr]
+                        parent_container_id = v_addr
+                        break
 
             cell = ET.SubElement(root, "mxCell")
             cell.set("id", cell_id)
@@ -310,16 +390,30 @@ class DrawioRenderer:
             cell.set("tooltip", self._build_tooltip(resource))
 
             geo = ET.SubElement(cell, "mxGeometry")
-            if parent_id != "1":
-                # コンテナ内の相対座標を使用
-                container_geo = self._get_container_origin(
-                    root, container_cell_ids.get(
-                        next(ca for ca, ch in container_children.items()
-                             if node_addr in ch), ""
-                    )
+            if parent_container_id is not None:
+                # コンテナ内の相対座標を計算
+                # Subnet内の場合: Subnet原点からの相対座標
+                # VPC内（Subnet外）の場合: VPC原点からの相対座標
+                container_origin = self._get_container_origin(
+                    root, all_container_ids[parent_container_id]
                 )
-                geo.set("x", str(round(x - container_geo[0])))
-                geo.set("y", str(round(y - container_geo[1])))
+                # Subnetコンテナ内のノードは、SubnetがVPC内の相対座標を持つため
+                # 絶対座標からSubnetの絶対位置を引く必要がある
+                if parent_container_id in subnet_cell_ids:
+                    # Subnetの親VPCを見つける
+                    vpc_origin = (0.0, 0.0)
+                    for v_addr, v_ch in vpc_children.items():
+                        if parent_container_id in v_ch and v_addr in vpc_cell_ids:
+                            vpc_origin = self._get_container_origin(root, vpc_cell_ids[v_addr])
+                            break
+                    # Subnet絶対座標 = VPC原点 + Subnet相対座標
+                    abs_sx = vpc_origin[0] + container_origin[0]
+                    abs_sy = vpc_origin[1] + container_origin[1]
+                    geo.set("x", str(round(x - abs_sx)))
+                    geo.set("y", str(round(y - abs_sy)))
+                else:
+                    geo.set("x", str(round(x - container_origin[0])))
+                    geo.set("y", str(round(y - container_origin[1])))
             else:
                 geo.set("x", str(round(x)))
                 geo.set("y", str(round(y)))
@@ -334,10 +428,28 @@ class DrawioRenderer:
             if src_cell and tgt_cell:
                 edge_id = self._next_id()
                 relation_type = edge_data.get("relation_type", "contains")
-                self.create_edge(
+                edge_cell = self.create_edge(
                     root, edge_id, src_cell, tgt_cell,
                     relation_type=relation_type,
                 )
+                if show_labels:
+                    attr_name = edge_data.get("attr_name", "")
+                    if attr_name:
+                        edge_cell.set("value", attr_name)
+
+        # ビューポートサイズを全ノード座標から動的計算
+        viewport_margin = 200
+        if positions:
+            all_x = [p[0] for p in positions.values()]
+            all_y = [p[1] for p in positions.values()]
+            vp_dx = max(int(max(all_x) + viewport_margin), 800)
+            vp_dy = max(int(max(all_y) + viewport_margin), 600)
+        else:
+            vp_dx, vp_dy = 800, 600
+        mx_graph_model.set("dx", str(vp_dx))
+        mx_graph_model.set("dy", str(vp_dy))
+        mx_graph_model.set("pageWidth", str(vp_dx))
+        mx_graph_model.set("pageHeight", str(vp_dy))
 
         # ファイルに書き出し
         tree = ET.ElementTree(mxfile)

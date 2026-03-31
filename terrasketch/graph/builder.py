@@ -148,6 +148,7 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
                     graph.add_edge(
                         target.address, src.address,
                         relation_type=relation_type,
+                        attr_name=attr_name,
                     )
                     continue
 
@@ -157,6 +158,7 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
                         graph.add_edge(
                             candidate.address, src.address,
                             relation_type=relation_type,
+                            attr_name=attr_name,
                         )
                         break
 

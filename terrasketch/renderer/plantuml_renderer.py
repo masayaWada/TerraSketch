@@ -92,6 +92,7 @@ class PlantUMLRenderer:
         graph: nx.DiGraph,
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
+        show_labels: bool = False,
     ) -> Path:
         """グラフをPlantUMLファイルとしてレンダリングする。
 
@@ -99,6 +100,7 @@ class PlantUMLRenderer:
             graph: リソース依存関係グラフ。
             positions: ノード座標（PlantUMLでは自動レイアウトのため参考情報）。
             output_path: 出力.pumlファイルのパス。
+            show_labels: エッジに接続属性名ラベルを表示するか。
 
         Returns:
             書き出されたPlantUMLファイルのPath。
@@ -191,11 +193,18 @@ class PlantUMLRenderer:
             src_id = _sanitize_id(source)
             tgt_id = _sanitize_id(target)
             relation_type = edge_data.get("relation_type", "contains")
+            label = edge_data.get("attr_name", "") if show_labels else ""
 
             if relation_type == "references":
-                lines.append(f"{src_id} ..> {tgt_id}")
+                if label:
+                    lines.append(f"{src_id} ..> {tgt_id} : {label}")
+                else:
+                    lines.append(f"{src_id} ..> {tgt_id}")
             else:
-                lines.append(f"{src_id} --> {tgt_id}")
+                if label:
+                    lines.append(f"{src_id} --> {tgt_id} : {label}")
+                else:
+                    lines.append(f"{src_id} --> {tgt_id}")
 
         lines.append("")
         lines.append("@enduml")

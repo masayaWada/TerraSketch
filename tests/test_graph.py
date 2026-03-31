@@ -166,3 +166,15 @@ def test_nested_attribute_in_graph():
     # Lambda -> Subnet と Lambda -> SG のエッジが生成されるべき
     assert graph.has_edge("aws_subnet.pub", "aws_lambda_function.handler")
     assert graph.has_edge("aws_security_group.lambda_sg", "aws_lambda_function.handler")
+
+
+def test_edge_attr_name():
+    """エッジにattr_name属性が付与されることを確認。"""
+    resources = _make_resources()
+    graph = build_graph(resources)
+
+    # VPC -> Subnet のエッジにattr_nameが付与される
+    if graph.has_edge("aws_vpc.main", "aws_subnet.pub"):
+        edge_data = graph.edges["aws_vpc.main", "aws_subnet.pub"]
+        assert "attr_name" in edge_data
+        assert edge_data["attr_name"] == "vpc_id"

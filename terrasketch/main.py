@@ -37,6 +37,7 @@ def generate(
     show_security: bool = False,
     show_summary: bool = False,
     hcl_path: str | None = None,
+    show_labels: bool = False,
 ) -> Path:
     """構成図生成パイプライン全体を実行する。
 
@@ -48,6 +49,7 @@ def generate(
         show_security: セキュリティグループルールの注釈を付与するか。
         show_summary: リソースサマリーを標準出力に表示するか。
         hcl_path: Terraform HCLファイルまたはディレクトリのパス。
+        show_labels: エッジに接続属性名ラベルを表示するか。
 
     Returns:
         生成された出力ファイルのPath。
@@ -100,15 +102,15 @@ def generate(
     if output_format == "mermaid":
         logger.info("Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.md")
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.md", show_labels=show_labels)
     elif output_format == "plantuml":
         logger.info("PlantUMLダイアグラムをレンダリング中...")
         renderer = PlantUMLRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.puml")
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.puml", show_labels=show_labels)
     else:
         logger.info("draw.ioダイアグラムをレンダリング中...")
         renderer = DrawioRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio")
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio", show_labels=show_labels)
 
     logger.info("構成図を保存しました: %s", result)
     return result
@@ -171,6 +173,12 @@ def main() -> None:
     )
 
     gen_parser.add_argument(
+        "--labels",
+        action="store_true",
+        help="エッジに接続属性名（vpc_id等）のラベルを表示",
+    )
+
+    gen_parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="デバッグレベルの詳細ログを表示",
@@ -194,6 +202,7 @@ def main() -> None:
             show_security=args.security,
             show_summary=args.summary,
             hcl_path=args.hcl,
+            show_labels=args.labels,
         )
     elif args.command == "gui":
         from terrasketch.gui.app import TerraSketchApp

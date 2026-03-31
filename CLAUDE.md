@@ -103,7 +103,7 @@ python -m pytest tests/test_graph.py -v
 python -m pytest tests/test_graph.py::test_nested_attribute_in_graph -v
 ```
 
-テスト68件: parser(6), graph(11), layout(9), renderer(14), mapping(10), integration(4), hcl_parser(12), 他(2)
+テスト75件: parser(6), graph(12), layout(9), renderer(20), mapping(10), integration(4), hcl_parser(12), 他(2)
 
 ## 新しいリソースタイプの追加
 
@@ -124,5 +124,4 @@ python -m pytest tests/test_graph.py::test_nested_attribute_in_graph -v
 
 - GCP対応は未実装（最低優先度）
 - HCLパーサーは軽量実装。複雑なHCL式（条件式、for式）は未対応
-- GUI は現在 state JSON のみ対応（HCL入力は CLI のみ）
-- draw.io のビューポートサイズはハードコード (`dx="1422" dy="762"`)
+- `--labels` オプションでエッジに接続属性名（`vpc_id` 等）を表示可能

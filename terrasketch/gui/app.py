@@ -1,6 +1,6 @@
 """TerraSketch GUIアプリケーション（Tkinter）。
 
-stateファイル・出力ディレクトリ・プロバイダ選択のGUIを提供し、
+stateファイル/HCLファイル・出力ディレクトリ・プロバイダ選択のGUIを提供し、
 バックグラウンドスレッドで構成図生成パイプラインを実行する。
 """
 
@@ -19,6 +19,7 @@ from terrasketch.layout.engine import calculate_layout
 from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
+from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
 
 
 class LogRedirector:
@@ -46,15 +47,18 @@ class TerraSketchApp:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title("TerraSketch - Terraform構成図生成ツール")
-        self.root.geometry("700x550")
+        self.root.geometry("700x600")
         self.root.resizable(True, True)
 
+        self._input_type = tk.StringVar(value="state")
         self._state_path = tk.StringVar()
+        self._hcl_path = tk.StringVar()
         self._output_dir = tk.StringVar(value=str(Path.cwd()))
         self._provider = tk.StringVar(value="aws")
         self._format = tk.StringVar(value="drawio")
         self._security = tk.BooleanVar(value=False)
         self._summary = tk.BooleanVar(value=False)
+        self._labels = tk.BooleanVar(value=False)
 
         self._build_ui()
 
@@ -63,15 +67,43 @@ class TerraSketchApp:
         main_frame = ttk.Frame(self.root, padding=10)
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # stateファイル選択
-        file_frame = ttk.LabelFrame(main_frame, text="Stateファイル", padding=5)
-        file_frame.pack(fill=tk.X, pady=(0, 5))
+        # 入力形式選択
+        input_type_frame = ttk.LabelFrame(main_frame, text="入力形式", padding=5)
+        input_type_frame.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Entry(file_frame, textvariable=self._state_path).pack(
+        ttk.Radiobutton(
+            input_type_frame, text="State JSON", value="state",
+            variable=self._input_type, command=self._toggle_input,
+        ).pack(side=tk.LEFT, padx=10)
+        ttk.Radiobutton(
+            input_type_frame, text="HCL ファイル", value="hcl",
+            variable=self._input_type, command=self._toggle_input,
+        ).pack(side=tk.LEFT, padx=10)
+
+        # stateファイル選択
+        self._state_frame = ttk.LabelFrame(main_frame, text="Stateファイル", padding=5)
+        self._state_frame.pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Entry(self._state_frame, textvariable=self._state_path).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
-        ttk.Button(file_frame, text="参照...", command=self._browse_state).pack(
+        ttk.Button(self._state_frame, text="参照...", command=self._browse_state).pack(
             side=tk.RIGHT
+        )
+
+        # HCLファイル/ディレクトリ選択
+        self._hcl_frame = ttk.LabelFrame(main_frame, text="HCLファイル / ディレクトリ", padding=5)
+
+        ttk.Entry(self._hcl_frame, textvariable=self._hcl_path).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
+        hcl_btn_frame = ttk.Frame(self._hcl_frame)
+        hcl_btn_frame.pack(side=tk.RIGHT)
+        ttk.Button(hcl_btn_frame, text="ファイル...", command=self._browse_hcl_file).pack(
+            side=tk.LEFT, padx=(0, 2)
+        )
+        ttk.Button(hcl_btn_frame, text="フォルダ...", command=self._browse_hcl_dir).pack(
+            side=tk.LEFT
         )
 
         # 出力ディレクトリ選択
@@ -99,7 +131,7 @@ class TerraSketchApp:
         fmt_frame = ttk.LabelFrame(main_frame, text="出力形式", padding=5)
         fmt_frame.pack(fill=tk.X, pady=(0, 5))
 
-        for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid")):
+        for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid"), ("plantuml", "PlantUML")):
             ttk.Radiobutton(
                 fmt_frame, text=label, value=fmt,
                 variable=self._format,
@@ -114,6 +146,9 @@ class TerraSketchApp:
         ).pack(side=tk.LEFT, padx=10)
         ttk.Checkbutton(
             opts_frame, text="サマリー表示", variable=self._summary,
+        ).pack(side=tk.LEFT, padx=10)
+        ttk.Checkbutton(
+            opts_frame, text="エッジラベル表示", variable=self._labels,
         ).pack(side=tk.LEFT, padx=10)
 
         # 実行ボタン
@@ -131,6 +166,19 @@ class TerraSketchApp:
         )
         self._log.pack(fill=tk.BOTH, expand=True)
 
+    def _toggle_input(self) -> None:
+        """入力形式の切替に応じてフレームの表示/非表示を切り替える。"""
+        if self._input_type.get() == "state":
+            self._hcl_frame.pack_forget()
+            self._state_frame.pack(fill=tk.X, pady=(0, 5), after=self.root.nametowidget(
+                self._state_frame.master
+            ).winfo_children()[0])
+        else:
+            self._state_frame.pack_forget()
+            self._hcl_frame.pack(fill=tk.X, pady=(0, 5), after=self.root.nametowidget(
+                self._hcl_frame.master
+            ).winfo_children()[0])
+
     def _browse_state(self) -> None:
         """stateファイル選択ダイアログを表示する。"""
         path = filedialog.askopenfilename(
@@ -139,6 +187,21 @@ class TerraSketchApp:
         )
         if path:
             self._state_path.set(path)
+
+    def _browse_hcl_file(self) -> None:
+        """HCLファイル選択ダイアログを表示する。"""
+        path = filedialog.askopenfilename(
+            title="Terraform HCLファイルを選択",
+            filetypes=[("Terraformファイル", "*.tf"), ("すべてのファイル", "*.*")],
+        )
+        if path:
+            self._hcl_path.set(path)
+
+    def _browse_hcl_dir(self) -> None:
+        """HCLディレクトリ選択ダイアログを表示する。"""
+        path = filedialog.askdirectory(title="Terraform HCLディレクトリを選択")
+        if path:
+            self._hcl_path.set(path)
 
     def _browse_output(self) -> None:
         """出力ディレクトリ選択ダイアログを表示する。"""
@@ -155,27 +218,48 @@ class TerraSketchApp:
 
     def _run(self) -> None:
         """構成図生成をバックグラウンドスレッドで開始する。"""
-        state_path = self._state_path.get().strip()
         output_dir = self._output_dir.get().strip()
 
-        if not state_path:
-            self._log_message("[ERROR] stateファイルを選択してください。")
-            return
+        if self._input_type.get() == "state":
+            input_path = self._state_path.get().strip()
+            if not input_path:
+                self._log_message("[ERROR] stateファイルを選択してください。")
+                return
+        else:
+            input_path = self._hcl_path.get().strip()
+            if not input_path:
+                self._log_message("[ERROR] HCLファイルまたはディレクトリを選択してください。")
+                return
+
         if not output_dir:
             self._log_message("[ERROR] 出力ディレクトリを選択してください。")
             return
 
         self._run_btn.configure(state=tk.DISABLED)
         thread = threading.Thread(
-            target=self._generate, args=(state_path, output_dir), daemon=True
+            target=self._generate,
+            args=(input_path, output_dir),
+            daemon=True,
         )
         thread.start()
 
-    def _generate(self, state_path: str, output_dir: str) -> None:
+    def _generate(self, input_path: str, output_dir: str) -> None:
         """構成図生成パイプラインを実行する（バックグラウンドスレッド）。"""
         try:
-            self._log_message("[INFO] stateファイルを解析中...")
-            resources = parse_state(state_path)
+            # 入力形式に応じて解析
+            if self._input_type.get() == "hcl":
+                from terrasketch.parser.hcl_parser import parse_hcl, parse_hcl_directory
+                hcl = Path(input_path)
+                if hcl.is_dir():
+                    self._log_message(f"[INFO] HCLディレクトリを解析中: {input_path}")
+                    resources = parse_hcl_directory(input_path)
+                else:
+                    self._log_message(f"[INFO] HCLファイルを解析中: {input_path}")
+                    resources = parse_hcl(input_path)
+            else:
+                self._log_message("[INFO] stateファイルを解析中...")
+                resources = parse_state(input_path)
+
             self._log_message(f"[INFO] {len(resources)}件のリソースを検出。")
 
             provider = self._provider.get()
@@ -212,11 +296,15 @@ class TerraSketchApp:
                 self._log_message("[INFO] Mermaidダイアグラムをレンダリング中...")
                 renderer = MermaidRenderer()
                 output_path = Path(output_dir) / "terrasketch_output.md"
+            elif fmt == "plantuml":
+                self._log_message("[INFO] PlantUMLダイアグラムをレンダリング中...")
+                renderer = PlantUMLRenderer()
+                output_path = Path(output_dir) / "terrasketch_output.puml"
             else:
                 self._log_message("[INFO] draw.ioダイアグラムをレンダリング中...")
                 renderer = DrawioRenderer()
                 output_path = Path(output_dir) / "terrasketch_output.drawio"
-            result = renderer.render(graph, positions, output_path)
+            result = renderer.render(graph, positions, output_path, show_labels=self._labels.get())
 
             self._log_message(f"[SUCCESS] 構成図を保存しました: {result}")
         except Exception as e:
