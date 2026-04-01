@@ -20,6 +20,7 @@ from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
+from terrasketch.renderer.svg_renderer import SvgRenderer
 
 
 class LogRedirector:
@@ -131,7 +132,7 @@ class TerraSketchApp:
         fmt_frame = ttk.LabelFrame(main_frame, text="出力形式", padding=5)
         fmt_frame.pack(fill=tk.X, pady=(0, 5))
 
-        for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid"), ("plantuml", "PlantUML")):
+        for fmt, label in (("drawio", "draw.io"), ("mermaid", "Mermaid"), ("plantuml", "PlantUML"), ("svg", "SVG")):
             ttk.Radiobutton(
                 fmt_frame, text=label, value=fmt,
                 variable=self._format,
@@ -300,6 +301,10 @@ class TerraSketchApp:
                 self._log_message("[INFO] PlantUMLダイアグラムをレンダリング中...")
                 renderer = PlantUMLRenderer()
                 output_path = Path(output_dir) / "terrasketch_output.puml"
+            elif fmt == "svg":
+                self._log_message("[INFO] SVGダイアグラムをレンダリング中...")
+                renderer = SvgRenderer()
+                output_path = Path(output_dir) / "terrasketch_output.svg"
             else:
                 self._log_message("[INFO] draw.ioダイアグラムをレンダリング中...")
                 renderer = DrawioRenderer()

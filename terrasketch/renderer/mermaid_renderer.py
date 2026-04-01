@@ -48,6 +48,8 @@ class MermaidRenderer:
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
         show_labels: bool = False,
+        diff_mode: bool = False,
+        group_by_module: bool = False,
     ) -> Path:
         """グラフをMermaid markdownファイルとしてレンダリングする。
 
@@ -56,6 +58,7 @@ class MermaidRenderer:
             positions: ノード座標（並び順の参考として使用、ピクセル配置には非使用）。
             output_path: 出力.mdファイルのパス。
             show_labels: エッジに接続属性名ラベルを表示するか。
+            diff_mode: diff比較結果を色分けで表示するか。
 
         Returns:
             書き出されたMermaidファイルのPath。
@@ -64,6 +67,32 @@ class MermaidRenderer:
         lines: list[str] = []
         lines.append("```mermaid")
         lines.append("flowchart TD")
+
+        # モジュール境界グルーピング（--group-by module）
+        module_emitted: set[str] = set()
+        if group_by_module:
+            module_nodes: dict[str, list[str]] = {}
+            for node_addr in graph.nodes:
+                data = graph.nodes[node_addr]
+                module_path = data.get("module_path", "")
+                if module_path:
+                    module_nodes.setdefault(module_path, []).append(node_addr)
+
+            # モジュール subgraph を出力
+            for mod_path in sorted(module_nodes.keys()):
+                mod_id = _sanitize_id(mod_path)
+                lines.append(f"    subgraph {mod_id}_module[\"{mod_path}\"]")
+                for node_addr in sorted(module_nodes[mod_path]):
+                    data = graph.nodes[node_addr]
+                    resource = data.get("resource")
+                    if resource is None:
+                        continue
+                    node_id = _sanitize_id(node_addr)
+                    label = f"{resource.type}\\n{resource.name}"
+                    open_b, close_b = _get_shape(resource.type)
+                    lines.append(f"        {node_id}{open_b}\"{label}\"{close_b}")
+                    module_emitted.add(node_addr)
+                lines.append("    end")
 
         # VPC/VNet コンテナとSubnetコンテナの階層構造を構築
         container_types = {"aws_vpc", "azurerm_virtual_network"}
@@ -91,6 +120,8 @@ class MermaidRenderer:
 
         # ノードを出力（VPC > Subnet > リソースの階層subgraph）
         emitted_nodes: set[str] = set()
+        if group_by_module:
+            emitted_nodes.update(module_emitted)
 
         for vpc_addr in sorted(vpc_children.keys()):
             vpc_data = graph.nodes[vpc_addr]
@@ -189,6 +220,11 @@ class MermaidRenderer:
         lines.append("    classDef security fill:#fce4ec,stroke:#b71c1c,stroke-width:1px")
         lines.append("    classDef storage fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px")
 
+        if diff_mode:
+            lines.append("    classDef diff_added fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px")
+            lines.append("    classDef diff_removed fill:#ffcdd2,stroke:#c62828,stroke-width:3px,stroke-dasharray:5 5")
+            lines.append("    classDef diff_modified fill:#fff9c4,stroke:#f57f17,stroke-width:3px")
+
         # スタイルを各ノードに適用
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
@@ -196,6 +232,14 @@ class MermaidRenderer:
             if resource is None:
                 continue
             node_id = _sanitize_id(node_addr)
+
+            # diffモードではdiffステータスのスタイルを優先
+            if diff_mode:
+                diff_status = data.get("diff_status", "unchanged")
+                if diff_status in ("added", "removed", "modified"):
+                    lines.append(f"    class {node_id} diff_{diff_status}")
+                    continue
+
             css_class = _classify_resource(resource.type)
             if css_class:
                 lines.append(f"    class {node_id} {css_class}")

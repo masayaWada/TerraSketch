@@ -87,12 +87,21 @@ def _get_color(resource_type: str) -> str:
 class PlantUMLRenderer:
     """TerraformリソースグラフをPlantUMLコンポーネント図としてレンダリングする。"""
 
+    # diffモード用の色マッピング
+    _DIFF_COLORS = {
+        "added": "#C8E6C9",
+        "removed": "#FFCDD2",
+        "modified": "#FFF9C4",
+    }
+
     def render(
         self,
         graph: nx.DiGraph,
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
         show_labels: bool = False,
+        diff_mode: bool = False,
+        group_by_module: bool = False,
     ) -> Path:
         """グラフをPlantUMLファイルとしてレンダリングする。
 
@@ -101,6 +110,7 @@ class PlantUMLRenderer:
             positions: ノード座標（PlantUMLでは自動レイアウトのため参考情報）。
             output_path: 出力.pumlファイルのパス。
             show_labels: エッジに接続属性名ラベルを表示するか。
+            diff_mode: diff比較結果を色分けで表示するか。
 
         Returns:
             書き出されたPlantUMLファイルのPath。
@@ -115,12 +125,30 @@ class PlantUMLRenderer:
         lines.append("skinparam shadowing false")
         lines.append("")
 
+        # モジュール境界グルーピング
+        module_emitted: set[str] = set()
+        if group_by_module:
+            module_nodes: dict[str, list[str]] = {}
+            for node_addr in graph.nodes:
+                data = graph.nodes[node_addr]
+                module_path = data.get("module_path", "")
+                if module_path:
+                    module_nodes.setdefault(module_path, []).append(node_addr)
+
+            for mod_path in sorted(module_nodes.keys()):
+                lines.append(f'package "{mod_path}" #EEEEEE {{')
+                for node_addr in sorted(module_nodes[mod_path]):
+                    self._emit_component(graph, node_addr, lines, indent=4, diff_mode=diff_mode)
+                    module_emitted.add(node_addr)
+                lines.append("}")
+                lines.append("")
+
         # VPC/VNetコンテナの階層構造を構築
         container_types = {"aws_vpc", "azurerm_virtual_network"}
         subnet_types = {"aws_subnet", "azurerm_subnet"}
         vpc_children: dict[str, list[str]] = {}
         subnet_children: dict[str, list[str]] = {}
-        emitted_nodes: set[str] = set()
+        emitted_nodes: set[str] = set(module_emitted)
 
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
@@ -164,7 +192,7 @@ class PlantUMLRenderer:
                 for child_addr in sorted(subnet_children[subnet_addr]):
                     if child_addr in emitted_nodes:
                         continue
-                    self._emit_component(graph, child_addr, lines, indent=8)
+                    self._emit_component(graph, child_addr, lines, indent=8, diff_mode=diff_mode)
                     emitted_nodes.add(child_addr)
 
                 lines.append("    }")
@@ -173,7 +201,7 @@ class PlantUMLRenderer:
             for child_addr in sorted(vpc_children[vpc_addr]):
                 if child_addr in emitted_nodes:
                     continue
-                self._emit_component(graph, child_addr, lines, indent=4)
+                self._emit_component(graph, child_addr, lines, indent=4, diff_mode=diff_mode)
                 emitted_nodes.add(child_addr)
 
             lines.append("}")
@@ -183,7 +211,7 @@ class PlantUMLRenderer:
         for node_addr in sorted(graph.nodes):
             if node_addr in emitted_nodes:
                 continue
-            self._emit_component(graph, node_addr, lines, indent=0)
+            self._emit_component(graph, node_addr, lines, indent=0, diff_mode=diff_mode)
             emitted_nodes.add(node_addr)
 
         lines.append("")
@@ -214,12 +242,13 @@ class PlantUMLRenderer:
         output_path.write_text("\n".join(lines), encoding="utf-8")
         return output_path
 
-    @staticmethod
     def _emit_component(
+        self,
         graph: nx.DiGraph,
         node_addr: str,
         lines: list[str],
         indent: int = 0,
+        diff_mode: bool = False,
     ) -> None:
         """単一リソースをPlantUMLコンポーネントとして出力する。"""
         data = graph.nodes[node_addr]
@@ -229,7 +258,18 @@ class PlantUMLRenderer:
         node_id = _sanitize_id(node_addr)
         stereotype = _get_stereotype(resource.type)
         color = _get_color(resource.type)
+
+        # diffモード時は色とラベルを上書き
+        label_prefix = ""
+        if diff_mode:
+            diff_status = data.get("diff_status", "unchanged")
+            diff_color = self._DIFF_COLORS.get(diff_status)
+            if diff_color:
+                color = diff_color
+                diff_labels = {"added": "[NEW] ", "removed": "[DEL] ", "modified": "[MOD] "}
+                label_prefix = diff_labels.get(diff_status, "")
+
         pad = " " * indent
         lines.append(
-            f'{pad}component "{resource.type}\\n{resource.name}" as {node_id} {stereotype} {color}'
+            f'{pad}component "{label_prefix}{resource.type}\\n{resource.name}" as {node_id} {stereotype} {color}'
         )

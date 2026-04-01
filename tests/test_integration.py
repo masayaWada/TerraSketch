@@ -9,6 +9,7 @@ from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
+from terrasketch.renderer.svg_renderer import SvgRenderer
 
 
 SAMPLE_STATE = Path(__file__).parent.parent / "samples" / "sample_state.json"
@@ -63,6 +64,20 @@ def test_full_pipeline_plantuml(tmp_path):
     assert "@startuml" in content
     assert "aws_vpc" in content
     assert "-->" in content
+
+
+def test_full_pipeline_svg(tmp_path):
+    """SVG出力の全パイプラインが正常に完了することを確認。"""
+    resources = parse_state(SAMPLE_STATE)
+    graph = build_graph(resources)
+    positions = calculate_layout(graph)
+
+    renderer = SvgRenderer()
+    output = renderer.render(graph, positions, tmp_path / "out.svg")
+    assert output.exists()
+    content = output.read_text(encoding="utf-8")
+    assert "svg" in content
+    assert "aws_vpc" in content
 
 
 def test_provider_filtering(tmp_path):

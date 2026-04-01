@@ -21,14 +21,23 @@ class Resource:
     name: str
     provider: str
     attributes: dict[str, Any] = field(default_factory=dict)
+    module_path: str = ""
 
     @property
     def address(self) -> str:
         return f"{self.type}.{self.name}"
 
 
-def _extract_resources_from_module(module: dict[str, Any]) -> list[Resource]:
-    """モジュールおよび子モジュールからリソースを再帰的に抽出する。"""
+def _extract_resources_from_module(
+    module: dict[str, Any],
+    module_path: str = "",
+) -> list[Resource]:
+    """モジュールおよび子モジュールからリソースを再帰的に抽出する。
+
+    Args:
+        module: Terraform stateのモジュール辞書。
+        module_path: 現在のモジュールパス（例: 'module.vpc.module.subnets'）。
+    """
     resources: list[Resource] = []
 
     for res in module.get("resources", []):
@@ -40,11 +49,15 @@ def _extract_resources_from_module(module: dict[str, Any]) -> list[Resource]:
             name=res.get("name", ""),
             provider=provider,
             attributes=attrs,
+            module_path=module_path,
         )
         resources.append(resource)
 
     for child in module.get("child_modules", []):
-        resources.extend(_extract_resources_from_module(child))
+        # child_modulesにはaddressフィールドがある（例: 'module.vpc'）
+        child_source = child.get("address", "")
+        child_path = f"{module_path}.{child_source}" if module_path else child_source
+        resources.extend(_extract_resources_from_module(child, child_path))
 
     return resources
 

@@ -127,3 +127,40 @@ def test_parse_state_child_modules(tmp_path):
     assert len(resources) == 2
     types = {r.type for r in resources}
     assert types == {"aws_vpc", "aws_subnet"}
+
+
+def test_parse_state_module_path(tmp_path):
+    """子モジュールのリソースにmodule_pathが正しく設定されることを確認。"""
+    state = {
+        "values": {
+            "root_module": {
+                "resources": [
+                    {
+                        "type": "aws_vpc",
+                        "name": "main",
+                        "provider_name": "aws",
+                        "values": {"id": "vpc-1"},
+                    }
+                ],
+                "child_modules": [
+                    {
+                        "address": "module.network",
+                        "resources": [
+                            {
+                                "type": "aws_subnet",
+                                "name": "a",
+                                "provider_name": "aws",
+                                "values": {"id": "subnet-1"},
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    }
+    path = _write_state(tmp_path, state)
+    resources = parse_state(path)
+    vpc = next(r for r in resources if r.type == "aws_vpc")
+    subnet = next(r for r in resources if r.type == "aws_subnet")
+    assert vpc.module_path == ""
+    assert subnet.module_path == "module.network"

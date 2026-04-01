@@ -121,6 +121,7 @@ def build_graph(resources: list[Resource]) -> nx.DiGraph:
             resource=r,
             type=r.type,
             label=f"{r.type}\n{r.name}",
+            module_path=r.module_path,
         )
 
     # 関係ルールを適用

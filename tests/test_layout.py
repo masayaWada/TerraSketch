@@ -127,3 +127,45 @@ def test_large_graph_performance():
 
     positions = calculate_layout(graph)
     assert len(positions) == 100
+
+
+# --- フェーズ2: レイアウトアルゴリズム改善のテスト ---
+
+
+def test_grid_layout_explicit():
+    """明示的にgridレイアウトを選択した場合の動作を確認。"""
+    graph = nx.DiGraph()
+    graph.add_edge("a", "b")
+    graph.add_edge("b", "c")
+    positions = calculate_layout(graph, layout_type="grid")
+    assert len(positions) == 3
+
+
+def test_force_layout():
+    """forceレイアウトが座標を返すことを確認。"""
+    graph = nx.DiGraph()
+    graph.add_edge("a", "b")
+    graph.add_edge("b", "c")
+    graph.add_edge("a", "c")
+    positions = calculate_layout(graph, layout_type="force")
+    assert len(positions) == 3
+    # 全座標が非負
+    for _, (x, y) in positions.items():
+        assert x >= 0
+        assert y >= 0
+
+
+def test_barycenter_reduces_crossings():
+    """交差最小化が適用されてもレイアウトが正常に完了することを確認。"""
+    graph = nx.DiGraph()
+    # 2層のグラフ: a,b -> c,d,e
+    graph.add_edge("a", "c")
+    graph.add_edge("a", "e")
+    graph.add_edge("b", "d")
+    graph.add_edge("b", "c")
+    positions = calculate_layout(graph, layout_type="hierarchical")
+    assert len(positions) == 5
+    # 第1層（a,b）が第2層（c,d,e）より上にある
+    layer1_y = max(positions["a"][1], positions["b"][1])
+    layer2_y = min(positions["c"][1], positions["d"][1], positions["e"][1])
+    assert layer1_y < layer2_y

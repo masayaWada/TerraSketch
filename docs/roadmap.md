@@ -48,32 +48,32 @@
 
 ## フェーズ 2 — 機能強化（優先度: 中）
 
-- [ ] **2-1. diff モード（構成変更の可視化）**
+- [x] **2-1. diff モード（構成変更の可視化）**
   - 2つの Terraform state JSON を比較し、追加/削除/変更リソースを色分けで可視化
   - `terrasketch diff --before old_state.json --after new_state.json`
   - 追加: 緑、削除: 赤、変更: 黄。全レンダラーで対応
   - 新規: `terrasketch/diff/comparator.py`
 
-- [ ] **2-2. レイアウトアルゴリズムの改善**
+- [x] **2-2. レイアウトアルゴリズムの改善**
   - 現状: 同一層のノード配置が最適でない（交差エッジが多い場合がある）
   - 改善: Sugiyama アルゴリズムの交差最小化（barycenter法）を導入
   - `--layout` オプションで `hierarchical` / `grid` / `force` を選択可能に
   - 対象: `terrasketch/layout/engine.py`
 
-- [ ] **2-3. セキュリティルール詳細表示の強化**
+- [x] **2-3. セキュリティルール詳細表示の強化**
   - 現状: ノードラベルに短縮形のみ、ツールチップにルールテーブル未統合
   - 改善: ツールチップに `get_rules_table()` 統合、Allow/Deny 色分け、ポート情報のエッジ注釈
   - 対象: `terrasketch/graph/security.py`, `terrasketch/renderer/drawio_renderer.py`
 
-- [ ] **2-4. Terraform module 対応の強化**
+- [x] **2-4. Terraform module 対応の強化**
   - 現状: `child_modules` を再帰的に辿るがモジュール境界の情報が失われる
   - 改善: `Resource` に `module_path` を追加、モジュール境界をコンテナ / subgraph で可視化
   - `--group-by module` オプションでグルーピング選択
   - 対象: `terrasketch/parser/state_parser.py`, 各レンダラー
 
-- [ ] **2-5. SVG / PNG 直接出力**
-  - draw.io を介さず SVG（XML直接生成、外部依存なし）/ PNG（`Pillow` オプション依存）を出力
-  - `--format svg` / `--format png` で選択
+- [x] **2-5. SVG 直接出力**
+  - draw.io を介さず SVG（XML直接生成、外部依存なし）を出力
+  - `--format svg` で選択
   - 新規: `terrasketch/renderer/svg_renderer.py`
 
 ---

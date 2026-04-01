@@ -10,6 +10,7 @@ from terrasketch.parser.state_parser import Resource
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
+from terrasketch.renderer.svg_renderer import SvgRenderer
 
 
 def _build_test_graph():
@@ -346,3 +347,75 @@ def test_plantuml_edge_labels(tmp_path):
     result = renderer.render(graph, positions, tmp_path / "labels.puml", show_labels=True)
     content = result.read_text(encoding="utf-8")
     assert ": vpc_id" in content or ": subnet_id" in content
+
+
+# --- SVGレンダラーのテスト ---
+
+
+def test_svg_render_creates_file(tmp_path):
+    """SVGレンダラーが.svgファイルを作成することを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = SvgRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.svg")
+    assert result.exists()
+    assert result.suffix == ".svg"
+
+
+def test_svg_render_valid_xml(tmp_path):
+    """SVG出力が有効なXMLであることを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = SvgRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.svg")
+    tree = ET.parse(str(result))
+    root = tree.getroot()
+    assert "svg" in root.tag
+
+
+def test_svg_render_contains_nodes(tmp_path):
+    """SVG出力にリソースノードが含まれることを確認。"""
+    graph = _build_test_graph()
+    positions = {"aws_vpc.main": (100, 100), "aws_subnet.pub": (100, 300)}
+    renderer = SvgRenderer()
+    result = renderer.render(graph, positions, tmp_path / "out.svg")
+    content = result.read_text(encoding="utf-8")
+    assert "aws_vpc" in content
+    assert "aws_subnet" in content
+
+
+def test_svg_empty_graph(tmp_path):
+    """空のグラフでも有効なSVGが生成されることを確認。"""
+    graph = nx.DiGraph()
+    renderer = SvgRenderer()
+    result = renderer.render(graph, {}, tmp_path / "empty.svg")
+    assert result.exists()
+    content = result.read_text(encoding="utf-8")
+    assert "svg" in content
+
+
+def test_svg_diff_mode(tmp_path):
+    """SVGでdiffモードの色分けが適用されることを確認。"""
+    graph = nx.DiGraph()
+    ec2 = Resource(id="i-1", type="aws_instance", name="web", provider="aws", attributes={})
+    graph.add_node(ec2.address, resource=ec2, type=ec2.type, label=f"{ec2.type}\n{ec2.name}", diff_status="added")
+    positions = {"aws_instance.web": (100, 100)}
+    renderer = SvgRenderer()
+    result = renderer.render(graph, positions, tmp_path / "diff.svg", diff_mode=True)
+    content = result.read_text(encoding="utf-8")
+    assert "[NEW]" in content
+    assert "#c8e6c9" in content
+
+
+def test_svg_edge_labels(tmp_path):
+    """SVGでshow_labels有効時にエッジラベルが表示されることを確認。"""
+    graph = _build_vpc_subnet_ec2_graph()
+    positions = {
+        "aws_vpc.main": (100, 100),
+        "aws_subnet.pub": (100, 250),
+        "aws_instance.web": (100, 400),
+    }
+    renderer = SvgRenderer()
+    result = renderer.render(graph, positions, tmp_path / "labels.svg", show_labels=True)
+    content = result.read_text(encoding="utf-8")
+    assert "vpc_id" in content or "subnet_id" in content

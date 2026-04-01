@@ -2,6 +2,7 @@
 
 リソース属性からセキュリティグループのルールを抽出し、
 グラフのエッジやノードに人間が読める形式のルールサマリーを付与する。
+ツールチップにルールテーブルを統合し、Allow/Deny色分けに対応。
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ def annotate_security_rules(graph: nx.DiGraph) -> nx.DiGraph:
     """グラフにセキュリティグループのルール情報を付与する。
 
     各セキュリティグループノードからingress/egressルールを抽出し、
-    ノードラベルにルールサマリーを追加する。
+    ノードラベルにルールサマリー、ツールチップにルールテーブルを追加する。
 
     Args:
         graph: リソース依存関係グラフ（インプレースで変更）。
@@ -43,7 +44,50 @@ def annotate_security_rules(graph: nx.DiGraph) -> nx.DiGraph:
                 current_label = graph.nodes[node_addr].get("label", "")
                 graph.nodes[node_addr]["label"] = f"{current_label}\n{short_summary}"
 
+            # ツールチップにルールテーブルを追加
+            rules_table = get_rules_table(resource)
+            graph.nodes[node_addr]["security_tooltip"] = rules_table
+
+            # ポート情報をエッジ注釈として付与
+            _annotate_port_edges(graph, node_addr, rules_summary)
+
     return graph
+
+
+def _annotate_port_edges(
+    graph: nx.DiGraph,
+    sg_addr: str,
+    rules: list[dict[str, Any]],
+) -> None:
+    """セキュリティグループに関連するエッジにポート情報を注釈する。"""
+    # ingressルールからポート情報を収集
+    ingress_ports: list[str] = []
+    for rule in rules:
+        if rule["direction"] == "ingress":
+            from_p = rule["from_port"]
+            to_p = rule["to_port"]
+            proto = rule["protocol"]
+            if from_p == to_p:
+                ingress_ports.append(f"{proto}/{from_p}")
+            else:
+                ingress_ports.append(f"{proto}/{from_p}-{to_p}")
+
+    if not ingress_ports:
+        return
+
+    port_label = ", ".join(ingress_ports[:3])
+    if len(ingress_ports) > 3:
+        port_label += f" +{len(ingress_ports) - 3}"
+
+    # このSGに接続するエッジにポートラベルを付与
+    for pred in graph.predecessors(sg_addr):
+        edge_data = graph.edges[pred, sg_addr]
+        if edge_data.get("relation_type") == "references":
+            edge_data["port_label"] = port_label
+    for succ in graph.successors(sg_addr):
+        edge_data = graph.edges[sg_addr, succ]
+        if edge_data.get("relation_type") == "references":
+            edge_data["port_label"] = port_label
 
 
 def _summarize_rules(resource: Resource) -> list[dict[str, Any]]:
@@ -65,6 +109,7 @@ def _summarize_rules(resource: Resource) -> list[dict[str, Any]]:
                 "protocol": rule.get("protocol", "all"),
                 "cidr_blocks": rule.get("cidr_blocks", []),
                 "description": rule.get("description", ""),
+                "access": "Allow",
             })
 
     # Azure NSG
@@ -78,7 +123,8 @@ def _summarize_rules(resource: Resource) -> list[dict[str, Any]]:
             "protocol": rule.get("protocol", "*"),
             "cidr_blocks": [rule.get("source_address_prefix", "")],
             "description": rule.get("name", ""),
-            "access": rule.get("access", ""),
+            "access": rule.get("access", "Allow"),
+            "priority": rule.get("priority", 100),
         })
 
     return rules
@@ -122,6 +168,7 @@ def get_rules_table(resource: Resource) -> str:
     """詳細なルールテーブルを文字列として生成する。
 
     ツールチップや詳細ビューでの使用を想定。
+    Allow/Denyの区別、優先度情報を含む。
 
     Args:
         resource: セキュリティグループのResource。
@@ -134,18 +181,19 @@ def get_rules_table(resource: Resource) -> str:
         return "ルールが定義されていません。"
 
     lines = [
-        f"{'方向':<8} {'Proto':<6} {'ポート':<12} {'CIDR':<20} {'説明'}",
-        "-" * 70,
+        f"{'方向':<8} {'Access':<6} {'Proto':<6} {'ポート':<12} {'CIDR':<20} {'説明'}",
+        "-" * 76,
     ]
 
     for r in rules:
         direction = r["direction"].upper()
+        access = r.get("access", "Allow")
         proto = str(r["protocol"])
         from_p = r["from_port"]
         to_p = r["to_port"]
         ports = str(from_p) if from_p == to_p else f"{from_p}-{to_p}"
         cidrs = ", ".join(r.get("cidr_blocks", []))
         desc = r.get("description", "")
-        lines.append(f"{direction:<8} {proto:<6} {ports:<12} {cidrs:<20} {desc}")
+        lines.append(f"{direction:<8} {access:<6} {proto:<6} {ports:<12} {cidrs:<20} {desc}")
 
     return "\n".join(lines)

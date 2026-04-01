@@ -163,12 +163,21 @@ class DrawioRenderer:
                     )
         return (0.0, 0.0)
 
+    # diffモード用のスタイルオーバーライド
+    _DIFF_STYLE_OVERRIDES = {
+        "added": "fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=3;",
+        "removed": "fillColor=#ffcdd2;strokeColor=#c62828;strokeWidth=3;dashed=1;",
+        "modified": "fillColor=#fff9c4;strokeColor=#f57f17;strokeWidth=3;",
+    }
+
     def render(
         self,
         graph: nx.DiGraph,
         positions: dict[str, tuple[float, float]],
         output_path: str | Path,
         show_labels: bool = False,
+        diff_mode: bool = False,
+        group_by_module: bool = False,
     ) -> Path:
         """グラフ全体をdraw.io XMLファイルとしてレンダリングする。
 
@@ -177,6 +186,7 @@ class DrawioRenderer:
             positions: ノードアドレスから(x, y)座標へのマッピング。
             output_path: 出力.drawioファイルのパス。
             show_labels: エッジに接続属性名ラベルを表示するか。
+            diff_mode: diff比較結果を色分けで表示するか。
 
         Returns:
             書き出された.drawioファイルのPath。
@@ -217,6 +227,46 @@ class DrawioRenderer:
 
         # ノードアドレスからセルIDへのマッピング
         node_cell_ids: dict[str, str] = {}
+
+        # モジュール境界コンテナを作成
+        module_cell_ids: dict[str, str] = {}
+        if group_by_module:
+            module_nodes: dict[str, list[str]] = {}
+            for node_addr in graph.nodes:
+                data = graph.nodes[node_addr]
+                module_path = data.get("module_path", "")
+                if module_path:
+                    module_nodes.setdefault(module_path, []).append(node_addr)
+
+            module_style = (
+                "rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;"
+                "strokeColor=#666666;strokeWidth=2;dashed=1;"
+                "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
+                "fontSize=13;fontStyle=1;container=1;collapsible=0;"
+            )
+            for mod_path, mod_nodes in module_nodes.items():
+                mod_positions = [positions.get(n, (100.0, 100.0)) for n in mod_nodes]
+                min_x = min(p[0] for p in mod_positions) - 50
+                min_y = min(p[1] for p in mod_positions) - 70
+                max_x = max(p[0] for p in mod_positions) + 110
+                max_y = max(p[1] for p in mod_positions) + 110
+
+                cell_id = self._next_id()
+                module_cell_ids[mod_path] = cell_id
+
+                cell = ET.SubElement(root, "mxCell")
+                cell.set("id", cell_id)
+                cell.set("value", mod_path)
+                cell.set("style", module_style)
+                cell.set("vertex", "1")
+                cell.set("parent", "1")
+
+                geo = ET.SubElement(cell, "mxGeometry")
+                geo.set("x", str(round(min_x)))
+                geo.set("y", str(round(min_y)))
+                geo.set("width", str(round(max_x - min_x)))
+                geo.set("height", str(round(max_y - min_y)))
+                geo.set("as", "geometry")
 
         # コンテナグループを構築（VPC > Subnet の2段階ネスト）
         vpc_types = {"aws_vpc", "azurerm_virtual_network"}
@@ -381,13 +431,28 @@ class DrawioRenderer:
                         parent_container_id = v_addr
                         break
 
+            # diffモード時はスタイルとラベルを上書き
+            node_style = style.style
+            if diff_mode:
+                diff_status = data.get("diff_status", "unchanged")
+                override = self._DIFF_STYLE_OVERRIDES.get(diff_status)
+                if override:
+                    node_style = style.style + override
+                    diff_labels = {"added": "[NEW] ", "removed": "[DEL] ", "modified": "[MOD] "}
+                    label = diff_labels.get(diff_status, "") + label
+
             cell = ET.SubElement(root, "mxCell")
             cell.set("id", cell_id)
             cell.set("value", label)
-            cell.set("style", style.style)
+            cell.set("style", node_style)
             cell.set("vertex", "1")
             cell.set("parent", parent_id)
-            cell.set("tooltip", self._build_tooltip(resource))
+            # セキュリティルールテーブルがあればツールチップに統合
+            tooltip = self._build_tooltip(resource)
+            security_tooltip = data.get("security_tooltip")
+            if security_tooltip:
+                tooltip += "&#xa;&#xa;" + security_tooltip.replace("\n", "&#xa;")
+            cell.set("tooltip", tooltip)
 
             geo = ET.SubElement(cell, "mxGeometry")
             if parent_container_id is not None:
