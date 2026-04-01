@@ -16,3 +16,10 @@ terrasketch = "terrasketch.main:main"
 
 [tool.setuptools.packages.find]
 include = ["terrasketch*"]
+
+# プラグインシステムのエントリーポイントグループ定義（例）
+# 外部プラグインは以下のグループに登録:
+# [project.entry-points."terrasketch.renderers"]
+# d2 = "terrasketch_d2:D2Renderer"
+# [project.entry-points."terrasketch.mappings"]
+# custom = "my_mappings:CUSTOM_MAPPING"

@@ -80,18 +80,18 @@
 
 ## フェーズ 3 — 拡張・エコシステム（優先度: 低〜中）
 
-- [ ] **3-1. watch モード（ファイル変更監視）**
+- [x] **3-1. watch モード（ファイル変更監視）**
   - State / HCL の変更を監視し自動再生成（`watchdog` オプション依存、debounce 500ms）
   - `terrasketch watch --state state.json --output ./output`
 
-- [ ] **3-2. Web UI（ブラウザベース）**
+- [x] **3-2. Web UI（ブラウザベース）**
   - `terrasketch serve` でローカル HTTP サーバーを起動
   - ファイルアップロード → プレビュー → ダウンロードのワークフロー
   - Mermaid はブラウザ内でリアルタイムレンダリング
   - 依存: `http.server`（標準ライブラリのみ）
   - 新規: `terrasketch/web/server.py`, `terrasketch/web/templates/`
 
-- [ ] **3-3. カスタムテーマ / スタイル設定**
+- [x] **3-3. カスタムテーマ / スタイル設定**
   - `terrasketch.yaml` / `terrasketch.toml` でリソースの色・形状・アイコンをカスタマイズ
   - `--theme dark` / `--theme light` / `--theme custom` オプション
   - 設定例:
@@ -107,14 +107,14 @@
     ```
   - 新規: `terrasketch/config/theme.py`
 
-- [ ] **3-4. Terraform Cloud / Enterprise 連携**
+- [x] **3-4. Terraform Cloud / Enterprise 連携**
   - `terrasketch generate --tfc-workspace <org>/<workspace> --tfc-token <token>`
   - State Versions API から State JSON を直接取得
   - トークンは環境変数 `TFC_TOKEN` でも指定可能
   - ローカル完結原則との兼ね合いからオプション機能として分離
   - 新規: `terrasketch/remote/tfc_client.py`
 
-- [ ] **3-5. プラグインシステム**
+- [x] **3-5. プラグインシステム**
   - Python エントリーポイント（`[project.entry-points]`）で外部プラグインを発見
   - `terrasketch.renderers` / `terrasketch.mappings` グループでレンダラー・マッピングを拡張
   - プラグイン例:

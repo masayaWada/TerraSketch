@@ -9,6 +9,15 @@
     # diffモード
     terrasketch diff --before old_state.json --after new_state.json
 
+    # watchモード
+    terrasketch watch --state state.json --output ./output
+
+    # Web UIモード
+    terrasketch serve --port 8080
+
+    # Terraform Cloud連携
+    terrasketch tfc --workspace org/workspace --provider aws
+
     # GUIモード
     terrasketch gui
 """
@@ -44,6 +53,7 @@ def generate(
     show_labels: bool = False,
     layout_type: str = "hierarchical",
     group_by: str | None = None,
+    theme: str | None = None,
 ) -> Path:
     """構成図生成パイプライン全体を実行する。
 
@@ -51,17 +61,27 @@ def generate(
         state_path: Terraform state JSONファイルのパス。
         provider: クラウドプロバイダフィルタ（'aws' または 'azure'）。
         output_dir: 出力ファイルを書き出すディレクトリ。
-        output_format: 出力形式（'drawio'、'mermaid'、'plantuml'）。
+        output_format: 出力形式（'drawio'、'mermaid'、'plantuml'、'svg'）。
         show_security: セキュリティグループルールの注釈を付与するか。
         show_summary: リソースサマリーを標準出力に表示するか。
         hcl_path: Terraform HCLファイルまたはディレクトリのパス。
         show_labels: エッジに接続属性名ラベルを表示するか。
         layout_type: レイアウトアルゴリズム（'hierarchical', 'grid', 'force'）。
         group_by: グルーピング方法（'module' またはNone）。
+        theme: テーマ名またはテーマファイルのパス。
 
     Returns:
         生成された出力ファイルのPath。
     """
+    # テーマの適用
+    if theme:
+        from terrasketch.config.theme import load_theme
+        load_theme(theme)
+
+    # プラグインの発見
+    from terrasketch.plugins import discover_plugins
+    discover_plugins()
+
     if hcl_path:
         from terrasketch.parser.hcl_parser import parse_hcl, parse_hcl_directory
         hcl = Path(hcl_path)
@@ -109,7 +129,15 @@ def generate(
 
     group_by_module = group_by == "module"
 
-    if output_format == "mermaid":
+    # プラグインレンダラーの確認
+    from terrasketch.plugins import get_renderer
+    plugin_renderer_class = get_renderer(output_format)
+
+    if plugin_renderer_class:
+        logger.info("プラグインレンダラーを使用: %s", output_format)
+        renderer = plugin_renderer_class()
+        result = renderer.render(graph, positions, output_path / f"terrasketch_output.{output_format}", show_labels=show_labels, group_by_module=group_by_module)
+    elif output_format == "mermaid":
         logger.info("Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_output.md", show_labels=show_labels, group_by_module=group_by_module)
@@ -266,6 +294,11 @@ def main() -> None:
         default=None,
         help="リソースのグルーピング方法（module: モジュール境界でグループ化）",
     )
+    gen_parser.add_argument(
+        "--theme",
+        default=None,
+        help="テーマ名（default/light/dark）またはテーマファイルのパス",
+    )
 
     gen_parser.add_argument(
         "--verbose", "-v",
@@ -306,6 +339,118 @@ def main() -> None:
         help="デバッグレベルの詳細ログを表示",
     )
 
+    # watchコマンド
+    watch_parser = subparsers.add_parser(
+        "watch", help="ファイル変更を監視し構成図を自動再生成"
+    )
+    watch_parser.add_argument(
+        "--state", help="Terraform state JSONファイルのパス"
+    )
+    watch_parser.add_argument(
+        "--hcl", help="Terraform HCLファイルまたはディレクトリのパス"
+    )
+    watch_parser.add_argument(
+        "--provider",
+        choices=["aws", "azure"],
+        default="aws",
+        help="クラウドプロバイダ（デフォルト: aws）",
+    )
+    watch_parser.add_argument(
+        "--output",
+        default="./output",
+        help="出力ディレクトリ（デフォルト: ./output）",
+    )
+    watch_parser.add_argument(
+        "--format",
+        choices=["drawio", "mermaid", "plantuml", "svg"],
+        default="drawio",
+        help="出力形式（デフォルト: drawio）",
+    )
+    watch_parser.add_argument(
+        "--labels",
+        action="store_true",
+        help="エッジラベルを表示",
+    )
+    watch_parser.add_argument(
+        "--layout",
+        choices=["hierarchical", "grid", "force"],
+        default="hierarchical",
+        help="レイアウトアルゴリズム",
+    )
+    watch_parser.add_argument(
+        "--group-by",
+        choices=["module"],
+        default=None,
+        help="リソースのグルーピング方法",
+    )
+    watch_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="デバッグレベルの詳細ログを表示",
+    )
+
+    # serveコマンド
+    serve_parser = subparsers.add_parser(
+        "serve", help="Web UIをブラウザで起動"
+    )
+    serve_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="バインドするホスト名（デフォルト: 127.0.0.1）",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="ポート番号（デフォルト: 8080）",
+    )
+    serve_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="デバッグレベルの詳細ログを表示",
+    )
+
+    # tfcコマンド
+    tfc_parser = subparsers.add_parser(
+        "tfc", help="Terraform Cloud/Enterpriseからstateを取得し構成図を生成"
+    )
+    tfc_parser.add_argument(
+        "--workspace", required=True,
+        help="ワークスペース指定（<org>/<workspace>形式）",
+    )
+    tfc_parser.add_argument(
+        "--tfc-token",
+        default=None,
+        help="Terraform Cloud APIトークン（環境変数TFC_TOKENでも指定可）",
+    )
+    tfc_parser.add_argument(
+        "--tfc-url",
+        default=None,
+        help="Terraform Enterprise APIベースURL",
+    )
+    tfc_parser.add_argument(
+        "--provider",
+        choices=["aws", "azure"],
+        default="aws",
+        help="クラウドプロバイダ（デフォルト: aws）",
+    )
+    tfc_parser.add_argument(
+        "--output",
+        default=".",
+        help="出力ディレクトリ（デフォルト: カレントディレクトリ）",
+    )
+    tfc_parser.add_argument(
+        "--format",
+        choices=["drawio", "mermaid", "plantuml", "svg"],
+        default="drawio",
+        help="出力形式（デフォルト: drawio）",
+    )
+    tfc_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="デバッグレベルの詳細ログを表示",
+    )
+
     # guiコマンド
     subparsers.add_parser("gui", help="GUIを起動")
 
@@ -327,6 +472,7 @@ def main() -> None:
             show_labels=args.labels,
             layout_type=args.layout,
             group_by=args.group_by,
+            theme=args.theme,
         )
     elif args.command == "diff":
         diff_generate(
@@ -335,6 +481,33 @@ def main() -> None:
             provider=args.provider,
             output_dir=args.output,
             output_format=args.format,
+        )
+    elif args.command == "watch":
+        if not args.state and not args.hcl:
+            watch_parser.error("--state または --hcl のいずれかを指定してください。")
+        from terrasketch.watch.watcher import watch_and_generate
+        watch_and_generate(
+            state_path=args.state,
+            hcl_path=args.hcl,
+            provider=args.provider,
+            output_dir=args.output,
+            output_format=args.format,
+            show_labels=args.labels,
+            layout_type=args.layout,
+            group_by=args.group_by,
+        )
+    elif args.command == "serve":
+        from terrasketch.web.server import start_server
+        start_server(host=args.host, port=args.port)
+    elif args.command == "tfc":
+        from terrasketch.remote.tfc_client import fetch_and_generate
+        fetch_and_generate(
+            workspace_spec=args.workspace,
+            token=args.tfc_token,
+            provider=args.provider,
+            output_dir=args.output,
+            output_format=args.format,
+            base_url=args.tfc_url,
         )
     elif args.command == "gui":
         from terrasketch.gui.app import TerraSketchApp
