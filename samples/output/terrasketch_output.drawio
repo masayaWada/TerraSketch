@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="terrasketch" type="device">
+  <diagram id="terrasketch-diagram" name="TerraSketch">
+    <mxGraphModel grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" math="0" shadow="0" dx="800" dy="700" pageWidth="800" pageHeight="700">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="aws_vpc / main" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;fontSize=14;fontStyle=1;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="40" width="640" height="560" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="aws_subnet / public" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;strokeWidth=1;dashed=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;fontSize=12;fontStyle=1;container=1;collapsible=0;" vertex="1" parent="2">
+          <mxGeometry x="10" y="210" width="245" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="aws_subnet / private" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;strokeWidth=1;dashed=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;fontSize=12;fontStyle=1;container=1;collapsible=0;" vertex="1" parent="2">
+          <mxGeometry x="385" y="210" width="245" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="aws_security_group&#10;web_sg&#10;IN:tcp/80 | IN:tcp/443 | OUT:-1/0" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.security_group;" vertex="1" parent="2" tooltip="Type: aws_security_group&amp;#xa;Name: web_sg&amp;#xa;ID: sg-0eeee5555ffff6666&amp;#xa;Tags: Name=web-security-group&amp;#xa;&amp;#xa;方向       Access Proto  ポート          CIDR                 説明&amp;#xa;----------------------------------------------------------------------------&amp;#xa;INGRESS  Allow  tcp    80           0.0.0.0/0            &amp;#xa;INGRESS  Allow  tcp    443          0.0.0.0/0            &amp;#xa;EGRESS   Allow  -1     0            0.0.0.0/0            ">
+          <mxGeometry x="290" y="260" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="aws_instance&#10;web" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="3" tooltip="Type: aws_instance&amp;#xa;Name: web&amp;#xa;ID: i-0aaaa7777bbbb8888&amp;#xa;availability_zone: ap-northeast-1a&amp;#xa;instance_type: t3.micro&amp;#xa;ami: ami-0abcdef1234567890&amp;#xa;Tags: Name=web-server">
+          <mxGeometry x="155" y="250" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="aws_instance&#10;app" style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="4" tooltip="Type: aws_instance&amp;#xa;Name: app&amp;#xa;ID: i-0cccc9999dddd0000&amp;#xa;availability_zone: ap-northeast-1a&amp;#xa;instance_type: t3.small&amp;#xa;ami: ami-0abcdef1234567890&amp;#xa;Tags: Name=app-server">
+          <mxGeometry x="30" y="250" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="vpc_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="vpc_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;" edge="1" parent="1" source="2" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="vpc_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;" edge="1" parent="1" source="2" target="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="subnet_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;" edge="1" parent="1" source="3" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="subnet_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2e7d32;strokeWidth=2;" edge="1" parent="1" source="4" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="vpc_security_group_ids" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565c0;strokeWidth=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="5" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="vpc_security_group_ids" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1565c0;strokeWidth=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="5" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

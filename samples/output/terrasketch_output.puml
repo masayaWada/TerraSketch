@@ -1,0 +1,27 @@
+@startuml TerraSketch
+
+' TerraSketchにより自動生成されたPlantUMLダイアグラム
+skinparam componentStyle rectangle
+skinparam defaultTextAlignment center
+skinparam shadowing false
+
+package "aws_vpc / main" #E8F5E9 {
+    package "aws_subnet / private" #E3F2FD {
+        component "aws_instance\napp" as aws_instance_app <<EC2>> #FFF3E0
+    }
+    package "aws_subnet / public" #E3F2FD {
+        component "aws_instance\nweb" as aws_instance_web <<EC2>> #FFF3E0
+    }
+    component "aws_security_group\nweb_sg" as aws_security_group_web_sg <<SecurityGroup>> #FCE4EC
+}
+
+
+aws_vpc_main --> aws_subnet_public : vpc_id
+aws_vpc_main --> aws_subnet_private : vpc_id
+aws_vpc_main --> aws_security_group_web_sg : vpc_id
+aws_subnet_public --> aws_instance_web : subnet_id
+aws_subnet_private --> aws_instance_app : subnet_id
+aws_security_group_web_sg ..> aws_instance_web : vpc_security_group_ids
+aws_security_group_web_sg ..> aws_instance_app : vpc_security_group_ids
+
+@enduml

@@ -1,0 +1,140 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.7.0",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_vpc.main",
+          "mode": "managed",
+          "type": "aws_vpc",
+          "name": "main",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "vpc-0abc1234def56789",
+            "cidr_block": "10.0.0.0/16",
+            "enable_dns_support": true,
+            "enable_dns_hostnames": true,
+            "tags": {
+              "Name": "main-vpc"
+            }
+          }
+        },
+        {
+          "address": "aws_subnet.public",
+          "mode": "managed",
+          "type": "aws_subnet",
+          "name": "public",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "subnet-0aaa1111bbbb2222",
+            "vpc_id": "vpc-0abc1234def56789",
+            "cidr_block": "10.0.1.0/24",
+            "availability_zone": "ap-northeast-1a",
+            "map_public_ip_on_launch": true,
+            "tags": {
+              "Name": "public-subnet"
+            }
+          }
+        },
+        {
+          "address": "aws_subnet.private",
+          "mode": "managed",
+          "type": "aws_subnet",
+          "name": "private",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "subnet-0ccc3333dddd4444",
+            "vpc_id": "vpc-0abc1234def56789",
+            "cidr_block": "10.0.2.0/24",
+            "availability_zone": "ap-northeast-1c",
+            "map_public_ip_on_launch": false,
+            "tags": {
+              "Name": "private-subnet"
+            }
+          }
+        },
+        {
+          "address": "aws_security_group.web_sg",
+          "mode": "managed",
+          "type": "aws_security_group",
+          "name": "web_sg",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "sg-0eeee5555ffff6666",
+            "name": "web-sg",
+            "description": "Security group for web servers",
+            "vpc_id": "vpc-0abc1234def56789",
+            "ingress": [
+              {
+                "from_port": 80,
+                "to_port": 80,
+                "protocol": "tcp",
+                "cidr_blocks": ["0.0.0.0/0"]
+              },
+              {
+                "from_port": 443,
+                "to_port": 443,
+                "protocol": "tcp",
+                "cidr_blocks": ["0.0.0.0/0"]
+              },
+              {
+                "from_port": 8080,
+                "to_port": 8080,
+                "protocol": "tcp",
+                "cidr_blocks": ["10.0.0.0/16"]
+              }
+            ],
+            "egress": [
+              {
+                "from_port": 0,
+                "to_port": 0,
+                "protocol": "-1",
+                "cidr_blocks": ["0.0.0.0/0"]
+              }
+            ],
+            "tags": {
+              "Name": "web-security-group"
+            }
+          }
+        },
+        {
+          "address": "aws_instance.web",
+          "mode": "managed",
+          "type": "aws_instance",
+          "name": "web",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "i-0aaaa7777bbbb8888",
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "subnet_id": "subnet-0aaa1111bbbb2222",
+            "vpc_security_group_ids": ["sg-0eeee5555ffff6666"],
+            "availability_zone": "ap-northeast-1a",
+            "tags": {
+              "Name": "web-server"
+            }
+          }
+        },
+        {
+          "address": "aws_db_instance.main",
+          "mode": "managed",
+          "type": "aws_db_instance",
+          "name": "main",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "db-main-instance",
+            "engine": "mysql",
+            "engine_version": "8.0",
+            "instance_class": "db.t3.micro",
+            "db_subnet_group_name": "main-db-subnet-group",
+            "vpc_security_group_ids": ["sg-0eeee5555ffff6666"],
+            "tags": {
+              "Name": "main-database"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
