@@ -256,6 +256,169 @@ EXTENDED_GCP_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("google_pubsub_subscription", "topic", "google_pubsub_topic"),
 ]
 
+# Kubernetesリソースマッピング
+EXTENDED_K8S_MAPPING: dict[str, DrawioStyle] = {
+    # Namespace（コンテナ型）
+    "kubernetes_namespace": DrawioStyle(
+        shape="mxgraph.kubernetes.ns",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.ns;",
+    ),
+    "kubernetes_namespace_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.ns",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.ns;",
+    ),
+    # Deployment
+    "kubernetes_deployment": DrawioStyle(
+        shape="mxgraph.kubernetes.deploy",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.deploy;",
+    ),
+    "kubernetes_deployment_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.deploy",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.deploy;",
+    ),
+    # Service
+    "kubernetes_service": DrawioStyle(
+        shape="mxgraph.kubernetes.svc",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.svc;",
+    ),
+    "kubernetes_service_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.svc",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.svc;",
+    ),
+    # Ingress
+    "kubernetes_ingress": DrawioStyle(
+        shape="mxgraph.kubernetes.ing",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.ing;",
+    ),
+    "kubernetes_ingress_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.ing",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.ing;",
+    ),
+    # Pod
+    "kubernetes_pod": DrawioStyle(
+        shape="mxgraph.kubernetes.pod",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.pod;",
+    ),
+    "kubernetes_pod_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.pod",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.pod;",
+    ),
+    # StatefulSet
+    "kubernetes_stateful_set": DrawioStyle(
+        shape="mxgraph.kubernetes.sts",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.sts;",
+    ),
+    "kubernetes_stateful_set_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.sts",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.sts;",
+    ),
+    # DaemonSet
+    "kubernetes_daemon_set_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.ds",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.ds;",
+    ),
+    # ConfigMap / Secret
+    "kubernetes_config_map": DrawioStyle(
+        shape="mxgraph.kubernetes.cm",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.cm;",
+    ),
+    "kubernetes_config_map_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.cm",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.cm;",
+    ),
+    "kubernetes_secret": DrawioStyle(
+        shape="mxgraph.kubernetes.secret",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.secret;",
+    ),
+    "kubernetes_secret_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.secret",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.secret;",
+    ),
+    # HPA
+    "kubernetes_horizontal_pod_autoscaler": DrawioStyle(
+        shape="mxgraph.kubernetes.hpa",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.hpa;",
+    ),
+    "kubernetes_horizontal_pod_autoscaler_v1": DrawioStyle(
+        shape="mxgraph.kubernetes.hpa",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.kubernetes.hpa;",
+    ),
+}
+
+# Kubernetesリレーションシップルール
+EXTENDED_K8S_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
+    # Namespace包含（metadata.namespace による名前参照）
+    ("kubernetes_deployment", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_deployment_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_deployment_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_service", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_service_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_service_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_ingress", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_ingress_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_ingress_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_pod", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_pod_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_pod_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_stateful_set", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_stateful_set_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_stateful_set_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_daemon_set_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_daemon_set_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_config_map", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_config_map_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_config_map_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_secret", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_secret_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_secret_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+]
+
+# Kubernetesの包含関係
+K8S_CONTAINMENT_RULES: set[tuple[str, str, str]] = {
+    ("kubernetes_deployment", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_deployment_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_deployment_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_service", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_service_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_service_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_ingress", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_ingress_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_ingress_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_pod", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_pod_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_pod_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_stateful_set", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_stateful_set_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_stateful_set_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_daemon_set_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_daemon_set_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_config_map", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_config_map_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_config_map_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+    ("kubernetes_secret", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_secret_v1", "metadata.namespace", "kubernetes_namespace"),
+    ("kubernetes_secret_v1", "metadata.namespace", "kubernetes_namespace_v1"),
+}
+
 EXTENDED_AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("azurerm_windows_virtual_machine", "network_interface_ids", "azurerm_network_interface"),
     ("azurerm_storage_account", "resource_group_name", "azurerm_resource_group"),

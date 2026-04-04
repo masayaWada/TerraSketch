@@ -52,6 +52,26 @@ _STEREOTYPE_MAP: dict[str, str] = {
     "google_storage_bucket": "<<GCS>>",
     "google_pubsub_topic": "<<PubSub>>",
     "google_compute_forwarding_rule": "<<LoadBalancer>>",
+    # Kubernetesリソース
+    "kubernetes_namespace": "<<Namespace>>",
+    "kubernetes_namespace_v1": "<<Namespace>>",
+    "kubernetes_deployment": "<<Deployment>>",
+    "kubernetes_deployment_v1": "<<Deployment>>",
+    "kubernetes_service": "<<Service>>",
+    "kubernetes_service_v1": "<<Service>>",
+    "kubernetes_ingress": "<<Ingress>>",
+    "kubernetes_ingress_v1": "<<Ingress>>",
+    "kubernetes_pod": "<<Pod>>",
+    "kubernetes_pod_v1": "<<Pod>>",
+    "kubernetes_stateful_set": "<<StatefulSet>>",
+    "kubernetes_stateful_set_v1": "<<StatefulSet>>",
+    "kubernetes_daemon_set_v1": "<<DaemonSet>>",
+    "kubernetes_config_map": "<<ConfigMap>>",
+    "kubernetes_config_map_v1": "<<ConfigMap>>",
+    "kubernetes_secret": "<<Secret>>",
+    "kubernetes_secret_v1": "<<Secret>>",
+    "kubernetes_horizontal_pod_autoscaler": "<<HPA>>",
+    "kubernetes_horizontal_pod_autoscaler_v1": "<<HPA>>",
 }
 
 # リソースタイプごとのPlantUML色
@@ -113,6 +133,7 @@ class PlantUMLRenderer:
         show_labels: bool = False,
         diff_mode: bool = False,
         group_by_module: bool = False,
+        tag_groups: dict[str, list[str]] | None = None,
     ) -> Path:
         """グラフをPlantUMLファイルとしてレンダリングする。
 
@@ -154,12 +175,27 @@ class PlantUMLRenderer:
                 lines.append("}")
                 lines.append("")
 
+        # タググループ package を出力
+        tag_emitted: set[str] = set()
+        if tag_groups:
+            for tag_value in sorted(tag_groups.keys()):
+                node_addrs = tag_groups[tag_value]
+                valid_addrs = [a for a in node_addrs if a in graph.nodes and a not in module_emitted]
+                if not valid_addrs:
+                    continue
+                lines.append(f'package "{tag_value}" #FFF3E0 {{')
+                for node_addr in sorted(valid_addrs):
+                    self._emit_component(graph, node_addr, lines, indent=4, diff_mode=diff_mode)
+                    tag_emitted.add(node_addr)
+                lines.append("}")
+                lines.append("")
+
         # VPC/VNetコンテナの階層構造を構築
-        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network", "kubernetes_namespace", "kubernetes_namespace_v1"}
         subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
         vpc_children: dict[str, list[str]] = {}
         subnet_children: dict[str, list[str]] = {}
-        emitted_nodes: set[str] = set(module_emitted)
+        emitted_nodes: set[str] = set(module_emitted) | set(tag_emitted)
 
         for node_addr in graph.nodes:
             data = graph.nodes[node_addr]
@@ -280,7 +316,16 @@ class PlantUMLRenderer:
                 diff_labels = {"added": "[NEW] ", "removed": "[DEL] ", "modified": "[MOD] "}
                 label_prefix = diff_labels.get(diff_status, "")
 
+        # コストラベルを追加
+        cost_suffix = ""
+        cost_label = data.get("cost_label", "")
+        cost_diff_label = data.get("cost_diff_label", "")
+        if cost_diff_label:
+            cost_suffix = f"\\n{cost_diff_label}"
+        elif cost_label:
+            cost_suffix = f"\\n{cost_label}"
+
         pad = " " * indent
         lines.append(
-            f'{pad}component "{label_prefix}{resource.type}\\n{resource.name}" as {node_id} {stereotype} {color}'
+            f'{pad}component "{label_prefix}{resource.type}\\n{resource.name}{cost_suffix}" as {node_id} {stereotype} {color}'
         )

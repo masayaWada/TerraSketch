@@ -1,0 +1,177 @@
+name: "TerraSketch - Terraform構成図自動生成"
+description: "Terraform state/plan JSONからインフラ構成図を自動生成し、PRコメントとして投稿するGitHub Actions Composite Action"
+author: "TerraSketch"
+
+branding:
+  icon: "map"
+  color: "blue"
+
+inputs:
+  state_file:
+    description: "Terraform state JSONファイルのパス"
+    required: false
+    default: ""
+  provider:
+    description: "クラウドプロバイダ（aws, azure, gcp, kubernetes, all）"
+    required: false
+    default: "aws"
+  format:
+    description: "出力形式（drawio, mermaid, plantuml, svg, html）"
+    required: false
+    default: "mermaid"
+  output_dir:
+    description: "出力ディレクトリ"
+    required: false
+    default: "./terrasketch-output"
+  mode:
+    description: "実行モード（generate, diff, plan）"
+    required: false
+    default: "generate"
+  before_file:
+    description: "diffモード時の変更前stateファイルパス"
+    required: false
+    default: ""
+  plan_file:
+    description: "planモード時のTerraform plan JSONファイルパス"
+    required: false
+    default: ""
+  comment:
+    description: "PRにMermaid構成図をコメントとして投稿するか（true/false）"
+    required: false
+    default: "true"
+  github_token:
+    description: "GitHub APIトークン（PRコメント投稿用）"
+    required: false
+    default: ${{ github.token }}
+  runtime:
+    description: "ランタイム設定（auto, docker, native）"
+    required: false
+    default: "auto"
+  cost_file:
+    description: "infracost JSON出力ファイルのパス（コスト注釈用）"
+    required: false
+    default: ""
+
+outputs:
+  output_path:
+    description: "生成された構成図ファイルのパス"
+    value: ${{ steps.run-terrasketch.outputs.output_path }}
+  diagram_content:
+    description: "生成された構成図の内容（テキスト形式の場合）"
+    value: ${{ steps.run-terrasketch.outputs.diagram_content }}
+
+runs:
+  using: "composite"
+  steps:
+    # Python 3.10以上をセットアップ
+    - name: Python環境セットアップ
+      uses: actions/setup-python@v5
+      with:
+        python-version: ">=3.10"
+
+    # TerraSketchをインストール
+    - name: TerraSketchインストール
+      shell: bash
+      run: |
+        pip install --quiet terrasketch || pip install --quiet -e "${{ github.action_path }}/.."
+
+    # 出力ディレクトリを作成
+    - name: 出力ディレクトリ作成
+      shell: bash
+      run: mkdir -p "${{ inputs.output_dir }}"
+
+    # TerraSketch CLIを実行
+    - name: TerraSketch実行
+      id: run-terrasketch
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        MODE="${{ inputs.mode }}"
+        FORMAT="${{ inputs.format }}"
+        PROVIDER="${{ inputs.provider }}"
+        OUTPUT_DIR="${{ inputs.output_dir }}"
+        STATE_FILE="${{ inputs.state_file }}"
+        BEFORE_FILE="${{ inputs.before_file }}"
+        PLAN_FILE="${{ inputs.plan_file }}"
+        COST_FILE="${{ inputs.cost_file }}"
+        RUNTIME="${{ inputs.runtime }}"
+
+        # モードに応じてCLIコマンドを構築
+        CMD="terrasketch"
+
+        if [ "$MODE" = "generate" ]; then
+          if [ -z "$STATE_FILE" ]; then
+            echo "::error::generateモードではstate_fileが必須です"
+            exit 1
+          fi
+          CMD="$CMD generate --state $STATE_FILE --provider $PROVIDER --format $FORMAT --output $OUTPUT_DIR"
+
+          # コスト注釈オプション
+          if [ -n "$COST_FILE" ]; then
+            CMD="$CMD --cost $COST_FILE"
+          fi
+
+          # ランタイムオプション
+          if [ "$RUNTIME" != "auto" ]; then
+            CMD="$CMD --runtime $RUNTIME"
+          fi
+
+        elif [ "$MODE" = "diff" ]; then
+          if [ -z "$BEFORE_FILE" ] || [ -z "$STATE_FILE" ]; then
+            echo "::error::diffモードではbefore_fileとstate_file（after）が必須です"
+            exit 1
+          fi
+          CMD="$CMD diff --before $BEFORE_FILE --after $STATE_FILE --provider $PROVIDER --format $FORMAT --output $OUTPUT_DIR"
+
+        elif [ "$MODE" = "plan" ]; then
+          if [ -z "$PLAN_FILE" ]; then
+            echo "::error::planモードではplan_fileが必須です"
+            exit 1
+          fi
+          CMD="$CMD plan --plan $PLAN_FILE --provider $PROVIDER --format $FORMAT --output $OUTPUT_DIR"
+
+        else
+          echo "::error::不明なモード: $MODE（generate, diff, planのいずれかを指定してください）"
+          exit 1
+        fi
+
+        echo "::group::TerraSketch実行コマンド"
+        echo "$CMD"
+        echo "::endgroup::"
+
+        # コマンド実行
+        eval "$CMD"
+
+        # 出力ファイルパスを検出
+        OUTPUT_FILE=$(find "$OUTPUT_DIR" -name "terrasketch*" -type f | head -1)
+        if [ -z "$OUTPUT_FILE" ]; then
+          echo "::error::構成図ファイルが生成されませんでした"
+          exit 1
+        fi
+
+        echo "output_path=$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+
+        # テキスト形式の場合は内容も出力（mermaid, plantuml）
+        if [ "$FORMAT" = "mermaid" ] || [ "$FORMAT" = "plantuml" ]; then
+          # 複数行出力用のデリミタ
+          DELIMITER="EOF_$(date +%s)"
+          echo "diagram_content<<$DELIMITER" >> "$GITHUB_OUTPUT"
+          cat "$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+          echo "$DELIMITER" >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "::notice::構成図を生成しました: $OUTPUT_FILE"
+
+    # PRコメント投稿（mermaid形式かつPRイベント時のみ）
+    - name: PRコメント投稿
+      if: >-
+        inputs.comment == 'true'
+        && inputs.format == 'mermaid'
+        && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        OUTPUT_PATH: ${{ steps.run-terrasketch.outputs.output_path }}
+      run: |
+        python "${{ github.action_path }}/comment.py"

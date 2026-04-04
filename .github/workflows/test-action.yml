@@ -1,0 +1,163 @@
+name: TerraSketch Action テスト
+
+on:
+  pull_request:
+    paths:
+      - "action/**"
+      - "terrasketch/**"
+      - ".github/workflows/test-action.yml"
+
+jobs:
+  test-generate:
+    name: 構成図生成テスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: TerraSketch Action実行（generateモード）
+        id: generate
+        uses: ./action
+        with:
+          state_file: samples/sample_state.json
+          provider: aws
+          format: mermaid
+          output_dir: ./terrasketch-output
+          comment: "false"
+
+      - name: 出力ファイルの検証
+        shell: bash
+        run: |
+          echo "出力パス: ${{ steps.generate.outputs.output_path }}"
+
+          # ファイルが存在することを確認
+          if [ ! -f "${{ steps.generate.outputs.output_path }}" ]; then
+            echo "::error::出力ファイルが存在しません"
+            exit 1
+          fi
+
+          # ファイルが空でないことを確認
+          if [ ! -s "${{ steps.generate.outputs.output_path }}" ]; then
+            echo "::error::出力ファイルが空です"
+            exit 1
+          fi
+
+          # Mermaid形式の場合、flowchartキーワードが含まれることを確認
+          if ! grep -q "flowchart\|graph" "${{ steps.generate.outputs.output_path }}"; then
+            echo "::error::Mermaid構文が見つかりません"
+            exit 1
+          fi
+
+          echo "構成図の生成に成功しました"
+          echo "--- 生成内容（先頭20行）---"
+          head -20 "${{ steps.generate.outputs.output_path }}"
+
+      - name: 出力をアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrasketch-diagram-generate
+          path: ./terrasketch-output/
+          retention-days: 7
+
+  test-formats:
+    name: 複数形式テスト (${{ matrix.format }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        format: [drawio, mermaid, plantuml, svg]
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: TerraSketch Action実行（${{ matrix.format }}形式）
+        id: generate
+        uses: ./action
+        with:
+          state_file: samples/sample_state.json
+          provider: aws
+          format: ${{ matrix.format }}
+          output_dir: ./terrasketch-output-${{ matrix.format }}
+          comment: "false"
+
+      - name: 出力ファイルの検証
+        shell: bash
+        run: |
+          OUTPUT="${{ steps.generate.outputs.output_path }}"
+          echo "出力パス: $OUTPUT"
+
+          if [ ! -f "$OUTPUT" ]; then
+            echo "::error::出力ファイルが存在しません: $OUTPUT"
+            exit 1
+          fi
+
+          if [ ! -s "$OUTPUT" ]; then
+            echo "::error::出力ファイルが空です: $OUTPUT"
+            exit 1
+          fi
+
+          echo "${{ matrix.format }}形式の構成図生成に成功しました"
+
+      - name: 出力をアーティファクトとして保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrasketch-diagram-${{ matrix.format }}
+          path: ./terrasketch-output-${{ matrix.format }}/
+          retention-days: 7
+
+  test-comment-dry-run:
+    name: PRコメント投稿テスト（ドライラン）
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python環境セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: ">=3.10"
+
+      - name: TerraSketchインストール
+        shell: bash
+        run: pip install --quiet -e .
+
+      - name: 構成図を生成
+        shell: bash
+        run: |
+          mkdir -p ./terrasketch-output
+          terrasketch generate \
+            --state samples/sample_state.json \
+            --provider aws \
+            --format mermaid \
+            --output ./terrasketch-output
+
+      - name: コメントスクリプトの構文チェック
+        shell: bash
+        run: python -m py_compile action/comment.py
+
+      - name: コメント本文のドライラン生成
+        shell: bash
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'action')
+          from comment import _build_comment_body
+          from pathlib import Path
+
+          # 生成された構成図を読み込み
+          diagram_files = list(Path('./terrasketch-output').glob('terrasketch*'))
+          if not diagram_files:
+              print('::error::構成図ファイルが見つかりません')
+              sys.exit(1)
+
+          content = diagram_files[0].read_text(encoding='utf-8')
+          body = _build_comment_body(content)
+
+          print('--- PRコメントプレビュー ---')
+          print(body[:2000])
+          print(f'...(全{len(body)}文字)')
+
+          # マーカーが含まれることを確認
+          assert '<!-- terrasketch-diagram -->' in body, 'マーカーが見つかりません'
+          assert 'mermaid' in body, 'Mermaidブロックが見つかりません'
+          print('ドライランテスト成功')
+          "

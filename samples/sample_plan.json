@@ -1,0 +1,150 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.6.0",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_vpc.main",
+          "type": "aws_vpc",
+          "name": "main",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "vpc-12345",
+            "cidr_block": "10.0.0.0/16",
+            "tags": {"Name": "main-vpc"}
+          }
+        },
+        {
+          "address": "aws_subnet.public",
+          "type": "aws_subnet",
+          "name": "public",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "subnet-pub-01",
+            "vpc_id": "vpc-12345",
+            "cidr_block": "10.0.1.0/24",
+            "tags": {"Name": "public-subnet"}
+          }
+        },
+        {
+          "address": "aws_instance.web_new",
+          "type": "aws_instance",
+          "name": "web_new",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "i-new-001",
+            "instance_type": "t3.medium",
+            "subnet_id": "subnet-pub-01",
+            "tags": {"Name": "web-new"}
+          }
+        },
+        {
+          "address": "aws_security_group.web",
+          "type": "aws_security_group",
+          "name": "web",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": {
+            "id": "sg-web-01",
+            "vpc_id": "vpc-12345",
+            "name": "web-sg",
+            "description": "Updated web security group",
+            "tags": {"Name": "web-sg"}
+          }
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "aws_vpc.main",
+      "type": "aws_vpc",
+      "name": "main",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {
+          "id": "vpc-12345",
+          "cidr_block": "10.0.0.0/16",
+          "tags": {"Name": "main-vpc"}
+        },
+        "after": {
+          "id": "vpc-12345",
+          "cidr_block": "10.0.0.0/16",
+          "tags": {"Name": "main-vpc"}
+        }
+      }
+    },
+    {
+      "address": "aws_subnet.public",
+      "type": "aws_subnet",
+      "name": "public",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["no-op"],
+        "before": {
+          "id": "subnet-pub-01",
+          "vpc_id": "vpc-12345",
+          "cidr_block": "10.0.1.0/24"
+        },
+        "after": {
+          "id": "subnet-pub-01",
+          "vpc_id": "vpc-12345",
+          "cidr_block": "10.0.1.0/24"
+        }
+      }
+    },
+    {
+      "address": "aws_instance.web_new",
+      "type": "aws_instance",
+      "name": "web_new",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "id": "i-new-001",
+          "instance_type": "t3.medium",
+          "subnet_id": "subnet-pub-01",
+          "tags": {"Name": "web-new"}
+        }
+      }
+    },
+    {
+      "address": "aws_security_group.web",
+      "type": "aws_security_group",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "sg-web-01",
+          "vpc_id": "vpc-12345",
+          "name": "web-sg",
+          "description": "Web security group"
+        },
+        "after": {
+          "id": "sg-web-01",
+          "vpc_id": "vpc-12345",
+          "name": "web-sg",
+          "description": "Updated web security group"
+        }
+      }
+    },
+    {
+      "address": "aws_instance.old_web",
+      "type": "aws_instance",
+      "name": "old_web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "id": "i-old-001",
+          "instance_type": "t2.micro",
+          "subnet_id": "subnet-pub-01"
+        },
+        "after": null
+      }
+    }
+  ]
+}

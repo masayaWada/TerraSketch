@@ -1,0 +1,40 @@
+{
+  "version": "0.2",
+  "currency": "USD",
+  "projects": [
+    {
+      "name": "terrasketch-demo",
+      "breakdown": {
+        "resources": [
+          {
+            "name": "aws_instance.web",
+            "monthlyCost": "30.368",
+            "hourlyCost": "0.0416"
+          },
+          {
+            "name": "aws_db_instance.main",
+            "monthlyCost": "175.20",
+            "hourlyCost": "0.24"
+          },
+          {
+            "name": "aws_s3_bucket.data",
+            "monthlyCost": "2.30",
+            "hourlyCost": null
+          },
+          {
+            "name": "aws_lb.main",
+            "monthlyCost": "22.27",
+            "hourlyCost": "0.0305"
+          },
+          {
+            "name": "aws_vpc.main",
+            "monthlyCost": "0",
+            "hourlyCost": "0"
+          }
+        ],
+        "totalMonthlyCost": "230.138",
+        "totalHourlyCost": "0.312"
+      }
+    }
+  ]
+}

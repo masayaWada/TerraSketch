@@ -33,6 +33,23 @@ _SHAPE_MAP: dict[str, tuple[str, str]] = {
     "google_sql_database_instance": ("[(", ")]"),
     "google_cloudfunctions_function": (">", "]"),
     "google_container_cluster": ("[", "]"),
+    # Kubernetesリソース
+    "kubernetes_namespace": ("[[", "]]"),
+    "kubernetes_namespace_v1": ("[[", "]]"),
+    "kubernetes_deployment": ("[", "]"),
+    "kubernetes_deployment_v1": ("[", "]"),
+    "kubernetes_service": ("([", "])"),
+    "kubernetes_service_v1": ("([", "])"),
+    "kubernetes_ingress": ("{{", "}}"),
+    "kubernetes_ingress_v1": ("{{", "}}"),
+    "kubernetes_pod": ("[", "]"),
+    "kubernetes_pod_v1": ("[", "]"),
+    "kubernetes_stateful_set": ("[", "]"),
+    "kubernetes_stateful_set_v1": ("[", "]"),
+    "kubernetes_config_map": ("[(", ")]"),
+    "kubernetes_config_map_v1": ("[(", ")]"),
+    "kubernetes_secret": ("[(", ")]"),
+    "kubernetes_secret_v1": ("[(", ")]"),
 }
 
 _DEFAULT_SHAPE = ("[", "]")
@@ -48,6 +65,18 @@ def _get_shape(resource_type: str) -> tuple[str, str]:
     return _SHAPE_MAP.get(resource_type, _DEFAULT_SHAPE)
 
 
+def _build_label(resource: Resource, data: dict) -> str:
+    """コスト情報を含むMermaidラベルを構築する。"""
+    label = f"{resource.type}\\n{resource.name}"
+    cost_label = data.get("cost_label", "")
+    cost_diff_label = data.get("cost_diff_label", "")
+    if cost_diff_label:
+        label = f"{label}\\n{cost_diff_label}"
+    elif cost_label:
+        label = f"{label}\\n{cost_label}"
+    return label
+
+
 class MermaidRenderer:
     """Terraformリソースグラフをmermaid flowchartとしてレンダリングする。"""
 
@@ -59,6 +88,7 @@ class MermaidRenderer:
         show_labels: bool = False,
         diff_mode: bool = False,
         group_by_module: bool = False,
+        tag_groups: dict[str, list[str]] | None = None,
     ) -> Path:
         """グラフをMermaid markdownファイルとしてレンダリングする。
 
@@ -103,8 +133,30 @@ class MermaidRenderer:
                     module_emitted.add(node_addr)
                 lines.append("    end")
 
+        # タググループ subgraph を出力
+        tag_emitted: set[str] = set()
+        if tag_groups:
+            for tag_value in sorted(tag_groups.keys()):
+                node_addrs = tag_groups[tag_value]
+                valid_addrs = [a for a in node_addrs if a in graph.nodes and a not in module_emitted]
+                if not valid_addrs:
+                    continue
+                tag_id = _sanitize_id(f"tag_{tag_value}")
+                lines.append(f"    subgraph {tag_id}_group[\"{tag_value}\"]")
+                for node_addr in sorted(valid_addrs):
+                    data = graph.nodes[node_addr]
+                    resource = data.get("resource")
+                    if resource is None:
+                        continue
+                    node_id = _sanitize_id(node_addr)
+                    label = f"{resource.type}\\n{resource.name}"
+                    open_b, close_b = _get_shape(resource.type)
+                    lines.append(f"        {node_id}{open_b}\"{label}\"{close_b}")
+                    tag_emitted.add(node_addr)
+                lines.append("    end")
+
         # VPC/VNet コンテナとSubnetコンテナの階層構造を構築
-        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network", "kubernetes_namespace", "kubernetes_namespace_v1"}
         subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
 
         # VPCの子ノードを収集
@@ -131,6 +183,8 @@ class MermaidRenderer:
         emitted_nodes: set[str] = set()
         if group_by_module:
             emitted_nodes.update(module_emitted)
+        if tag_groups:
+            emitted_nodes.update(tag_emitted)
 
         for vpc_addr in sorted(vpc_children.keys()):
             vpc_data = graph.nodes[vpc_addr]

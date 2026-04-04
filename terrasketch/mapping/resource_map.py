@@ -138,6 +138,10 @@ _DEFAULT_STYLE = DrawioStyle(
 )
 
 
+# Kubernetesリソースタイプ -> draw.ioスタイル マッピング
+_K8S_MAPPING: dict[str, DrawioStyle] = {}
+
+
 def _load_extended() -> None:
     """初回ミス時に拡張リソースマッピングを遅延ロードする。"""
     global _extended_loaded
@@ -153,6 +157,11 @@ def _load_extended() -> None:
         _AWS_MAPPING.update(EXTENDED_AWS_MAPPING)
         _AZURE_MAPPING.update(EXTENDED_AZURE_MAPPING)
         _GCP_MAPPING.update(EXTENDED_GCP_MAPPING)
+    except ImportError:
+        pass
+    try:
+        from terrasketch.mapping.extended_resources import EXTENDED_K8S_MAPPING
+        _K8S_MAPPING.update(EXTENDED_K8S_MAPPING)
     except ImportError:
         pass
 
@@ -175,6 +184,8 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
         return _AZURE_MAPPING[resource_type]
     if resource_type in _GCP_MAPPING:
         return _GCP_MAPPING[resource_type]
+    if resource_type in _K8S_MAPPING:
+        return _K8S_MAPPING[resource_type]
 
     # 拡張マッピングを試行
     _load_extended()
@@ -184,6 +195,8 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
         return _AZURE_MAPPING[resource_type]
     if resource_type in _GCP_MAPPING:
         return _GCP_MAPPING[resource_type]
+    if resource_type in _K8S_MAPPING:
+        return _K8S_MAPPING[resource_type]
 
     return _DEFAULT_STYLE
 
@@ -203,4 +216,6 @@ def get_provider_from_type(resource_type: str) -> str:
         return "azure"
     if resource_type.startswith("google_"):
         return "gcp"
+    if resource_type.startswith("kubernetes_"):
+        return "kubernetes"
     return "unknown"

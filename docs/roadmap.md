@@ -3,7 +3,7 @@
 本ドキュメントでは、TerraSketch の今後の機能拡張計画を優先度順に整理する。
 
 > **最終更新:** 2026-04-04
-> **現在のバージョン:** v0.2.0
+> **現在のバージョン:** v0.4.0
 
 ---
 
@@ -56,55 +56,68 @@
 
 ---
 
-## フェーズ 6 — 機能拡張（優先度: 中）
+## フェーズ 6 — 機能拡張（優先度: 中）✅ 完了
 
-- [ ] **6-1. Kubernetes リソース対応**
-  - Terraform の `kubernetes_*` リソースを構成図に可視化
-  - Namespace → Deployment → Pod → Container の階層表現
-  - Service → Deployment のエッジ、Ingress の注釈表示
+- [x] **6-1. Kubernetes リソース対応**
+  - Terraform の `kubernetes_*` リソース（Namespace/Deployment/Service/Ingress/Pod/StatefulSet/ConfigMap/Secret/HPA）を構成図に可視化
+  - Namespace をコンテナとして階層表現（全4+1レンダラー対応）
+  - `--provider kubernetes` フィルタ、Mermaid形状・PlantUMLステレオタイプ定義
+  - サンプル: `samples/sample_k8s_state.json`
 
-- [ ] **6-2. コスト注釈表示**
-  - `infracost` JSON 出力との統合
-  - ノードに月額コスト推定を注釈表示
-  - diff モードでのコスト増減の色分け
+- [x] **6-2. コスト注釈表示**
+  - `infracost breakdown --format json` 出力との統合（`--cost` オプション）
+  - ノードに月額コスト推定を注釈表示（全5レンダラー対応）
+  - diffモードでのコスト増減の色分け（`annotate_cost_diff()`）
+  - サンプル: `samples/sample_infracost.json`
 
-- [ ] **6-3. インタラクティブ HTML 出力**
-  - D3.js / Cytoscape.js ベースのインタラクティブ構成図
-  - ズーム・パン・ノードクリックで詳細表示
-  - フィルタリング（プロバイダ別・リソースタイプ別・タグ別）
-  - `--format html` で出力
+- [x] **6-3. インタラクティブ HTML 出力**
+  - Cytoscape.js ベースのインタラクティブ構成図
+  - ズーム・パン・ノードクリックで詳細サイドパネル表示
+  - プロバイダ別フィルタ、リソース名検索
+  - `--format html` で出力、diff/plan/cost/タグ全対応
 
-- [ ] **6-4. Terraform plan 対応**
-  - `terraform show -json <planfile>` 形式の解析
-  - plan 段階での構成図プレビュー（適用前の変更予測）
-  - 追加予定/削除予定/変更予定のリソースを色分け表示
+- [x] **6-4. Terraform plan 対応**
+  - `terraform show -json <planfile>` 形式のplan JSON解析
+  - `terrasketch plan --plan <planfile>` で変更予測の構成図を生成
+  - create/delete/update/replace を色分け表示（既存diff機構を再利用）
+  - plan JSONバリデーション（`validate_plan_file()`）
+  - サンプル: `samples/sample_plan.json`
 
-- [ ] **6-5. タグベースグルーピング**
+- [x] **6-5. タグベースグルーピング**
   - `--group-by tag:Environment` でタグ値に基づくグルーピング
-  - 任意のタグキーを指定可能
-  - グループ間の参照関係も可視化
+  - 任意のタグキーを指定可能、Azure `tags_all` フォールバック対応
+  - 全5レンダラーでグループコンテナ/subgraph/package/rect描画
 
 ---
 
-## フェーズ 7 — エコシステム連携（優先度: 低〜中）
+## フェーズ 7 — エコシステム連携（優先度: 低〜中）✅ 完了
 
-- [ ] **7-1. VS Code 拡張**
-  - `.tf` / `.tfstate` ファイルからワンクリックで構成図生成
-  - サイドパネルでのプレビュー表示
+- [x] **7-1. VS Code 拡張**
+  - `.tf` / `.tfstate` ファイルからワンクリックで構成図生成（コマンドパレット対応）
+  - サイドパネルでのプレビュー表示（SVG / HTML WebView）
   - ファイル保存時の自動更新（watch モード統合）
+  - 設定: provider / format / pythonPath / autoGenerate / runtime
+  - `vscode-extension/` ディレクトリにTypeScript製拡張の雛形
 
-- [ ] **7-2. GitHub Actions アクション公開**
+- [x] **7-2. GitHub Actions アクション公開**
   - `uses: terrasketch/action@v1` で PR に構成図を自動コメント
   - diff モードで変更前後の構成図比較を PR レビューに統合
   - アーティファクトとして構成図ファイルを保存
+  - Composite Action（`action/action.yml`）+ PRコメントスクリプト（`action/comment.py`）
+  - セルフテスト用ワークフロー（`.github/workflows/test-action.yml`）
 
-- [ ] **7-3. Atlantis / Spacelift 連携**
+- [x] **7-3. Atlantis / Spacelift 連携**
   - PR ベースの Terraform ワークフローに構成図生成を組み込み
   - plan 実行後に自動で構成図を生成しコメント投稿
+  - Atlantis カスタムワークフロー用フックスクリプト + `atlantis.yaml` サンプル
+  - Spacelift after_plan フックスクリプト
+  - `integrations/atlantis/` / `integrations/spacelift/` ディレクトリ
 
-- [ ] **7-4. OpenTofu 対応**
-  - OpenTofu の state 形式との互換性検証・対応
-  - `--runtime opentofu` オプション
+- [x] **7-4. OpenTofu 対応**
+  - OpenTofu の state 形式との互換性検証・対応（`opentofu_version` 自動検出）
+  - `--runtime opentofu` / `--runtime auto` オプション（全コマンド対応）
+  - バリデーターの OpenTofu 対応（エラーメッセージに `tofu` コマンドを案内）
+  - サンプル: `samples/sample_opentofu_state.json`、テスト22件追加
 
 ---
 
@@ -142,6 +155,8 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-04-04 | v0.4.0 — フェーズ7完了（VS Code拡張・GitHub Actions・Atlantis/Spacelift連携・OpenTofu対応） |
+| 2026-04-04 | v0.3.0 — フェーズ6完了（K8s対応・コスト注釈・HTML出力・plan対応・タググルーピング） |
 | 2026-04-04 | v0.2.0 — フェーズ5完了（PyPI公開準備・テスト91%+・エラー改善・ドキュメントサイト） |
 | 2026-04-04 | v0.2.0 — フェーズ1〜4完了。フェーズ5〜8の新計画を策定 |
 | 2026-03-31 | チェックリスト形式に変更 |

@@ -1,15 +1,18 @@
-"""Terraform state JSON パーサー。
+"""Terraform / OpenTofu state JSON パーサー。
 
-`terraform show -json` で出力されたstate JSONを解析し、
+`terraform show -json` または `tofu show -json` で出力されたstate JSONを解析し、
 構造化されたResourceオブジェクトとしてリソースを抽出する。
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("terrasketch")
 
 
 @dataclass
@@ -62,12 +65,28 @@ def _extract_resources_from_module(
     return resources
 
 
-def parse_state(file_path: str | Path) -> list[Resource]:
-    """Terraform state JSONファイルを解析し、Resourceリストを返す。
+def detect_runtime(state: dict[str, Any]) -> str:
+    """state JSONからランタイム（terraform/opentofu）を自動検出する。
 
     Args:
-        file_path: Terraform state JSONファイルのパス
-                   （`terraform show -json` の出力）。
+        state: パース済みのstate JSON辞書。
+
+    Returns:
+        'opentofu' または 'terraform'。
+    """
+    if "opentofu_version" in state:
+        return "opentofu"
+    return "terraform"
+
+
+def parse_state(file_path: str | Path, runtime: str = "auto") -> list[Resource]:
+    """Terraform / OpenTofu state JSONファイルを解析し、Resourceリストを返す。
+
+    Args:
+        file_path: state JSONファイルのパス
+                   （`terraform show -json` または `tofu show -json` の出力）。
+        runtime: ランタイム指定（'terraform', 'opentofu', 'auto'）。
+                 'auto' の場合はJSONの内容から自動検出する。
 
     Returns:
         stateから抽出されたResourceオブジェクトのリスト。
@@ -82,6 +101,17 @@ def parse_state(file_path: str | Path) -> list[Resource]:
 
     with open(path, encoding="utf-8") as f:
         state = json.load(f)
+
+    # ランタイム検出
+    detected = detect_runtime(state)
+    if runtime == "auto":
+        runtime = detected
+    if runtime == "opentofu":
+        version = state.get("opentofu_version", "不明")
+        logger.info("OpenTofu state を検出しました（バージョン: %s）", version)
+    else:
+        version = state.get("terraform_version", "不明")
+        logger.info("Terraform state を検出しました（バージョン: %s）", version)
 
     values = state.get("values")
     if values is None:

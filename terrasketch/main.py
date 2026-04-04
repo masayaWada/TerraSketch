@@ -39,6 +39,7 @@ from terrasketch.parser.state_parser import parse_state
 from terrasketch.renderer.drawio_renderer import DrawioRenderer
 from terrasketch.renderer.mermaid_renderer import MermaidRenderer
 from terrasketch.renderer.plantuml_renderer import PlantUMLRenderer
+from terrasketch.renderer.html_renderer import HtmlRenderer
 from terrasketch.renderer.svg_renderer import SvgRenderer
 
 
@@ -54,6 +55,10 @@ def generate(
     layout_type: str = "hierarchical",
     group_by: str | None = None,
     theme: str | None = None,
+    cost_path: str | None = None,
+    runtime: str = "auto",
+    *,
+    _resources_override: list | None = None,
 ) -> Path:
     """構成図生成パイプライン全体を実行する。
 
@@ -93,11 +98,11 @@ def generate(
             resources = parse_hcl(hcl_path)
     else:
         logger.info("stateファイルを解析中: %s", state_path)
-        resources = parse_state(state_path)
+        resources = parse_state(state_path, runtime=runtime)
     logger.info("%d件のリソースを検出。", len(resources))
 
     # プロバイダでフィルタリング
-    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_"}
+    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_", "kubernetes": "kubernetes_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
@@ -114,6 +119,14 @@ def generate(
         graph.number_of_edges(),
     )
 
+    # コスト注釈
+    if cost_path:
+        from terrasketch.cost.annotator import annotate_costs, parse_infracost
+        logger.info("infracostデータを読み込み中: %s", cost_path)
+        cost_map = parse_infracost(cost_path)
+        annotate_costs(graph, cost_map)
+        logger.info("コスト注釈を %d リソースに適用。", sum(1 for n in graph.nodes if "cost_label" in graph.nodes[n]))
+
     if show_security:
         logger.info("セキュリティグループルールを注釈中...")
         annotate_security_rules(graph)
@@ -127,7 +140,14 @@ def generate(
 
     output_path = Path(output_dir)
 
-    group_by_module = group_by == "module"
+    # グルーピング設定の解析
+    from terrasketch.graph.grouping import build_tag_group_map, parse_group_by
+    group_type, tag_key = parse_group_by(group_by)
+    group_by_module = group_type == "module"
+    tag_groups: dict[str, list[str]] | None = None
+    if group_type == "tag" and tag_key:
+        tag_groups = build_tag_group_map(resources, tag_key)
+        logger.info("タグ '%s' で %d グループに分類。", tag_key, len(tag_groups))
 
     # プラグインレンダラーの確認
     from terrasketch.plugins import get_renderer
@@ -136,23 +156,27 @@ def generate(
     if plugin_renderer_class:
         logger.info("プラグインレンダラーを使用: %s", output_format)
         renderer = plugin_renderer_class()
-        result = renderer.render(graph, positions, output_path / f"terrasketch_output.{output_format}", show_labels=show_labels, group_by_module=group_by_module)
+        result = renderer.render(graph, positions, output_path / f"terrasketch_output.{output_format}", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
     elif output_format == "mermaid":
         logger.info("Mermaidダイアグラムをレンダリング中...")
         renderer = MermaidRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.md", show_labels=show_labels, group_by_module=group_by_module)
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.md", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
     elif output_format == "plantuml":
         logger.info("PlantUMLダイアグラムをレンダリング中...")
         renderer = PlantUMLRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.puml", show_labels=show_labels, group_by_module=group_by_module)
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.puml", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
     elif output_format == "svg":
         logger.info("SVGダイアグラムをレンダリング中...")
         svg_renderer = SvgRenderer()
-        result = svg_renderer.render(graph, positions, output_path / "terrasketch_output.svg", show_labels=show_labels, group_by_module=group_by_module)
+        result = svg_renderer.render(graph, positions, output_path / "terrasketch_output.svg", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
+    elif output_format == "html":
+        logger.info("インタラクティブHTMLをレンダリング中...")
+        html_renderer = HtmlRenderer()
+        result = html_renderer.render(graph, positions, output_path / "terrasketch_output.html", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
     else:
         logger.info("draw.ioダイアグラムをレンダリング中...")
         renderer = DrawioRenderer()
-        result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio", show_labels=show_labels, group_by_module=group_by_module)
+        result = renderer.render(graph, positions, output_path / "terrasketch_output.drawio", show_labels=show_labels, group_by_module=group_by_module, tag_groups=tag_groups)
 
     logger.info("構成図を保存しました: %s", result)
     return result
@@ -183,7 +207,7 @@ def diff_generate(
     resources, diff_status, changed_attrs = compare_states(before_path, after_path)
 
     # プロバイダフィルタ
-    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_"}
+    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_", "kubernetes": "kubernetes_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
@@ -213,11 +237,84 @@ def diff_generate(
     elif output_format == "plantuml":
         renderer = PlantUMLRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_diff.puml", diff_mode=True)
+    elif output_format == "svg":
+        svg_renderer = SvgRenderer()
+        result = svg_renderer.render(graph, positions, output_path / "terrasketch_diff.svg", diff_mode=True)
+    elif output_format == "html":
+        html_renderer = HtmlRenderer()
+        result = html_renderer.render(graph, positions, output_path / "terrasketch_diff.html", diff_mode=True)
     else:
         renderer = DrawioRenderer()
         result = renderer.render(graph, positions, output_path / "terrasketch_diff.drawio", diff_mode=True)
 
     logger.info("diff構成図を保存しました: %s", result)
+    return result
+
+
+def plan_generate(
+    plan_path: str,
+    provider: str,
+    output_dir: str,
+    output_format: str = "drawio",
+) -> Path:
+    """Terraform planファイルから変更予測の構成図を生成する。
+
+    Args:
+        plan_path: Terraform plan JSONファイルパス。
+        provider: クラウドプロバイダフィルタ。
+        output_dir: 出力ディレクトリ。
+        output_format: 出力形式。
+
+    Returns:
+        生成されたファイルのPath。
+    """
+    from terrasketch.diff.comparator import build_diff_graph
+    from terrasketch.parser.plan_parser import parse_plan
+
+    logger.info("planファイルを解析中: %s", plan_path)
+    resources, diff_status, changed_attrs = parse_plan(plan_path)
+
+    # プロバイダフィルタ
+    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_", "kubernetes": "kubernetes_"}
+    prefix = prefix_map.get(provider, "")
+    if prefix:
+        resources = [r for r in resources if r.type.startswith(prefix)]
+        filtered_addrs = {r.address for r in resources}
+        diff_status = {k: v for k, v in diff_status.items() if k in filtered_addrs}
+        changed_attrs = {k: v for k, v in changed_attrs.items() if k in filtered_addrs}
+
+    logger.info("plan対象リソース: %d件", len(resources))
+
+    graph = build_diff_graph(resources, diff_status, changed_attrs)
+    logger.info("planグラフ: %dノード, %dエッジ", graph.number_of_nodes(), graph.number_of_edges())
+
+    # plan統計をログ出力
+    from terrasketch.diff.comparator import DiffStatus
+    added = sum(1 for s in diff_status.values() if s == DiffStatus.ADDED)
+    removed = sum(1 for s in diff_status.values() if s == DiffStatus.REMOVED)
+    modified = sum(1 for s in diff_status.values() if s == DiffStatus.MODIFIED)
+    logger.info("plan変更サマリー: 追加=%d, 削除=%d, 変更=%d", added, removed, modified)
+
+    positions = calculate_layout(graph)
+    output_path = Path(output_dir)
+
+    if output_format == "mermaid":
+        renderer = MermaidRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_plan.md", diff_mode=True)
+    elif output_format == "plantuml":
+        renderer = PlantUMLRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_plan.puml", diff_mode=True)
+    elif output_format == "svg":
+        svg_renderer = SvgRenderer()
+        result = svg_renderer.render(graph, positions, output_path / "terrasketch_plan.svg", diff_mode=True)
+    elif output_format == "html":
+        html_renderer = HtmlRenderer()
+        result = html_renderer.render(graph, positions, output_path / "terrasketch_plan.html", diff_mode=True)
+    else:
+        renderer = DrawioRenderer()
+        result = renderer.render(graph, positions, output_path / "terrasketch_plan.drawio", diff_mode=True)
+
+    logger.info("plan構成図を保存しました: %s", result)
     return result
 
 
@@ -251,7 +348,7 @@ def main() -> None:
     )
     gen_parser.add_argument(
         "--provider",
-        choices=["aws", "azure", "gcp", "all"],
+        choices=["aws", "azure", "gcp", "kubernetes", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -262,7 +359,7 @@ def main() -> None:
     )
     gen_parser.add_argument(
         "--format",
-        choices=["drawio", "mermaid", "plantuml", "svg"],
+        choices=["drawio", "mermaid", "plantuml", "svg", "html"],
         default="drawio",
         help="出力形式（デフォルト: drawio）",
     )
@@ -290,16 +387,26 @@ def main() -> None:
     )
     gen_parser.add_argument(
         "--group-by",
-        choices=["module"],
         default=None,
-        help="リソースのグルーピング方法（module: モジュール境界でグループ化）",
+        help="リソースのグルーピング方法（module: モジュール境界、tag:<key>: タグ値でグループ化）",
     )
     gen_parser.add_argument(
         "--theme",
         default=None,
         help="テーマ名（default/light/dark）またはテーマファイルのパス",
     )
+    gen_parser.add_argument(
+        "--cost",
+        default=None,
+        help="infracost JSON出力ファイルのパス（ノードにコスト注釈を表示）",
+    )
 
+    gen_parser.add_argument(
+        "--runtime",
+        choices=["terraform", "opentofu", "auto"],
+        default="auto",
+        help="ランタイム指定（auto: 自動検出、terraform: Terraform、opentofu: OpenTofu）",
+    )
     gen_parser.add_argument(
         "--verbose", "-v",
         action="store_true",
@@ -316,6 +423,9 @@ def main() -> None:
     validate_parser.add_argument(
         "--hcl", help="検証するTerraform HCLファイルまたはディレクトリのパス"
     )
+    validate_parser.add_argument(
+        "--plan", help="検証するTerraform plan JSONファイルのパス"
+    )
 
     # diffコマンド
     diff_parser = subparsers.add_parser(
@@ -329,7 +439,7 @@ def main() -> None:
     )
     diff_parser.add_argument(
         "--provider",
-        choices=["aws", "azure", "gcp", "all"],
+        choices=["aws", "azure", "gcp", "kubernetes", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -340,11 +450,53 @@ def main() -> None:
     )
     diff_parser.add_argument(
         "--format",
-        choices=["drawio", "mermaid", "plantuml", "svg"],
+        choices=["drawio", "mermaid", "plantuml", "svg", "html"],
         default="drawio",
         help="出力形式（デフォルト: drawio）",
     )
     diff_parser.add_argument(
+        "--runtime",
+        choices=["terraform", "opentofu", "auto"],
+        default="auto",
+        help="ランタイム指定（auto: 自動検出、terraform: Terraform、opentofu: OpenTofu）",
+    )
+    diff_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="デバッグレベルの詳細ログを表示",
+    )
+
+    # planコマンド
+    plan_parser = subparsers.add_parser(
+        "plan", help="Terraform planファイルから変更予測の構成図を生成"
+    )
+    plan_parser.add_argument(
+        "--plan", required=True, help="Terraform plan JSON���ァイルのパス（terraform show -json <planfile>）"
+    )
+    plan_parser.add_argument(
+        "--provider",
+        choices=["aws", "azure", "gcp", "kubernetes", "all"],
+        default="aws",
+        help="クラウドプロバイダ（デフォルト: aws）",
+    )
+    plan_parser.add_argument(
+        "--output",
+        default=".",
+        help="出力ディレクトリ（デフォルト: カレントディレクトリ）",
+    )
+    plan_parser.add_argument(
+        "--format",
+        choices=["drawio", "mermaid", "plantuml", "svg", "html"],
+        default="drawio",
+        help="出力形式（デフォルト: drawio）",
+    )
+    plan_parser.add_argument(
+        "--runtime",
+        choices=["terraform", "opentofu", "auto"],
+        default="auto",
+        help="ランタイム指定（auto: 自動検出、terraform: Terraform、opentofu: OpenTofu）",
+    )
+    plan_parser.add_argument(
         "--verbose", "-v",
         action="store_true",
         help="デバッグレベルの詳細ログを表示",
@@ -362,7 +514,7 @@ def main() -> None:
     )
     watch_parser.add_argument(
         "--provider",
-        choices=["aws", "azure", "gcp", "all"],
+        choices=["aws", "azure", "gcp", "kubernetes", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -373,7 +525,7 @@ def main() -> None:
     )
     watch_parser.add_argument(
         "--format",
-        choices=["drawio", "mermaid", "plantuml", "svg"],
+        choices=["drawio", "mermaid", "plantuml", "svg", "html"],
         default="drawio",
         help="出力形式（デフォルト: drawio）",
     )
@@ -390,9 +542,14 @@ def main() -> None:
     )
     watch_parser.add_argument(
         "--group-by",
-        choices=["module"],
         default=None,
-        help="リソースのグルーピング方法",
+        help="リソースのグルーピング方法（module: モジュール境界、tag:<key>: タグ値でグループ化）",
+    )
+    watch_parser.add_argument(
+        "--runtime",
+        choices=["terraform", "opentofu", "auto"],
+        default="auto",
+        help="ランタイム指定（auto: 自動検出、terraform: Terraform、opentofu: OpenTofu）",
     )
     watch_parser.add_argument(
         "--verbose", "-v",
@@ -441,7 +598,7 @@ def main() -> None:
     )
     tfc_parser.add_argument(
         "--provider",
-        choices=["aws", "azure", "gcp", "all"],
+        choices=["aws", "azure", "gcp", "kubernetes", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -452,7 +609,7 @@ def main() -> None:
     )
     tfc_parser.add_argument(
         "--format",
-        choices=["drawio", "mermaid", "plantuml", "svg"],
+        choices=["drawio", "mermaid", "plantuml", "svg", "html"],
         default="drawio",
         help="出力形式（デフォルト: drawio）",
     )
@@ -473,11 +630,12 @@ def main() -> None:
         from terrasketch.parser.validator import (
             format_validation_result,
             validate_hcl_file,
+            validate_plan_file,
             validate_state_file,
         )
 
-        if not args.state and not args.hcl:
-            validate_parser.error("--state または --hcl のいずれかを指定してください。")
+        if not args.state and not args.hcl and not args.plan:
+            validate_parser.error("--state、--hcl、--plan のいずれかを指定してください。")
         if args.state:
             result = validate_state_file(args.state)
             print(format_validation_result(result))
@@ -485,6 +643,11 @@ def main() -> None:
                 sys.exit(1)
         if args.hcl:
             result = validate_hcl_file(args.hcl)
+            print(format_validation_result(result))
+            if not result.valid:
+                sys.exit(1)
+        if args.plan:
+            result = validate_plan_file(args.plan)
             print(format_validation_result(result))
             if not result.valid:
                 sys.exit(1)
@@ -524,11 +687,30 @@ def main() -> None:
             layout_type=args.layout,
             group_by=args.group_by,
             theme=args.theme,
+            cost_path=getattr(args, "cost", None),
+            runtime=args.runtime,
         )
     elif args.command == "diff":
         diff_generate(
             before_path=args.before,
             after_path=args.after,
+            provider=args.provider,
+            output_dir=args.output,
+            output_format=args.format,
+        )
+    elif args.command == "plan":
+        # 入力ファイルの事前検証
+        from terrasketch.parser.validator import (
+            format_validation_result,
+            validate_plan_file,
+        )
+        vr = validate_plan_file(args.plan)
+        if not vr.valid:
+            print(format_validation_result(vr), file=sys.stderr)
+            sys.exit(1)
+
+        plan_generate(
+            plan_path=args.plan,
             provider=args.provider,
             output_dir=args.output,
             output_format=args.format,

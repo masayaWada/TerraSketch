@@ -75,6 +75,7 @@ class SvgRenderer:
         show_labels: bool = False,
         diff_mode: bool = False,
         group_by_module: bool = False,
+        tag_groups: dict[str, list[str]] | None = None,
     ) -> Path:
         """グラフをSVGファイルとしてレンダリングする。
 
@@ -126,6 +127,39 @@ class SvgRenderer:
             polygon = ET.SubElement(marker, "polygon")
             polygon.set("points", "0 0, 10 3.5, 0 7")
             polygon.set("fill", color)
+
+        # タググループの矩形を描画
+        if tag_groups:
+            for tag_value in sorted(tag_groups.keys()):
+                node_addrs = tag_groups[tag_value]
+                valid_addrs = [a for a in node_addrs if a in positions]
+                if not valid_addrs:
+                    continue
+                group_positions = [positions[a] for a in valid_addrs]
+                min_x = min(p[0] for p in group_positions) - 20
+                min_y = min(p[1] for p in group_positions) - 40
+                max_x = max(p[0] for p in group_positions) + self.NODE_WIDTH + 20
+                max_y = max(p[1] for p in group_positions) + self.NODE_HEIGHT + 20
+
+                group_rect = ET.SubElement(svg, "rect")
+                group_rect.set("x", str(int(min_x)))
+                group_rect.set("y", str(int(min_y)))
+                group_rect.set("width", str(int(max_x - min_x)))
+                group_rect.set("height", str(int(max_y - min_y)))
+                group_rect.set("rx", "8")
+                group_rect.set("fill", "#fff3e0")
+                group_rect.set("stroke", "#e65100")
+                group_rect.set("stroke-width", "2")
+                group_rect.set("stroke-dasharray", "8,4")
+                group_rect.set("opacity", "0.5")
+
+                group_label = ET.SubElement(svg, "text")
+                group_label.set("x", str(int(min_x + 10)))
+                group_label.set("y", str(int(min_y + 16)))
+                group_label.set("font-size", "13")
+                group_label.set("font-weight", "bold")
+                group_label.set("fill", "#e65100")
+                group_label.text = tag_value
 
         # ノードの中心座標を計算
         node_centers: dict[str, tuple[float, float]] = {}
@@ -224,6 +258,17 @@ class SvgRenderer:
             name_text.set("font-size", "10")
             name_text.set("fill", "#666666")
             name_text.text = resource.name
+
+            # コストラベル（最下段）
+            cost_label = data.get("cost_diff_label", "") or data.get("cost_label", "")
+            if cost_label:
+                cost_text = ET.SubElement(svg, "text")
+                cost_text.set("x", str(int(x + self.NODE_WIDTH / 2)))
+                cost_text.set("y", str(int(y + 56)))
+                cost_text.set("text-anchor", "middle")
+                cost_text.set("font-size", "9")
+                cost_text.set("fill", "#e65100")
+                cost_text.text = cost_label
 
         # ファイルに書き出し
         tree = ET.ElementTree(svg)

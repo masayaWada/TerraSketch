@@ -1,0 +1,22 @@
+version: 3
+projects:
+  - name: my-infrastructure
+    dir: .
+    workspace: default
+    workflow: terrasketch
+
+workflows:
+  terrasketch:
+    plan:
+      steps:
+        # 標準の init と plan を実行
+        - init
+        - plan
+
+        # TerraSketch フックで構成図を生成
+        # PLANFILE と COMMENT_FILE は Atlantis が自動的に設定する
+        - run: bash integrations/atlantis/terrasketch_hook.sh
+
+    apply:
+      steps:
+        - apply

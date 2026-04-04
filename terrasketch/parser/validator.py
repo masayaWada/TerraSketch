@@ -77,23 +77,28 @@ def validate_state_file(file_path: str | Path) -> ValidationResult:
         hints.append("`terraform show -json` の出力形式を確認してください。")
         return ValidationResult(valid=False, errors=errors, hints=hints)
 
-    # Terraform state構造チェック
+    # Terraform / OpenTofu state構造チェック
+    is_opentofu = "opentofu_version" in data
+    runtime_name = "OpenTofu" if is_opentofu else "Terraform"
+    show_cmd = "tofu show -json" if is_opentofu else "terraform show -json"
+
     if "values" not in data:
         errors.append("必須キー 'values' が見つかりません。")
         if "resource_changes" in data:
             hints.append(
-                "これは terraform plan の出力です。state JSONを使用するには "
-                "`terraform show -json` を実行してください。"
+                f"これは {runtime_name} plan の出力です。state JSONを使用するには "
+                f"`{show_cmd}` を実行してください。"
             )
-        elif "terraform_version" in data:
+        elif "terraform_version" in data or "opentofu_version" in data:
             hints.append(
-                "Terraform state形式ですが 'values' キーがありません。"
-                " `terraform show -json` で再出力してください。"
+                f"{runtime_name} state形式ですが 'values' キーがありません。"
+                f" `{show_cmd}` で再出力してください。"
             )
         else:
             hints.append(
-                "Terraform state JSON形式ではないようです。"
-                " `terraform show -json > state.json` で生成してください。"
+                "Terraform / OpenTofu state JSON形式ではないようです。"
+                " `terraform show -json > state.json` または"
+                " `tofu show -json > state.json` で生成してください。"
             )
 
     values = data.get("values", {})
@@ -148,6 +153,79 @@ def validate_hcl_file(file_path: str | Path) -> ValidationResult:
             elif "resource" not in content and "data" not in content:
                 errors.append("resource ブロックが見つかりません。")
                 hints.append("ファイルに `resource` ブロックが定義されているか確認してください。")
+
+    return ValidationResult(
+        valid=len(errors) == 0,
+        errors=errors,
+        hints=hints,
+    )
+
+
+def validate_plan_file(file_path: str | Path) -> ValidationResult:
+    """Terraform plan JSONファイルを検証する。
+
+    Args:
+        file_path: 検証対象のファイルパス。
+
+    Returns:
+        検証結果。
+    """
+    path = Path(file_path)
+    errors: list[str] = []
+    hints: list[str] = []
+
+    if not path.exists():
+        errors.append(f"ファイルが見つかりません: {path}")
+        hints.append("ファイルパスが正しいか確認してください。")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    if not path.is_file():
+        errors.append(f"ディレクトリが指定されました: {path}")
+        hints.append("plan JSONファイルのパスを指定してください。")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        errors.append("ファイルがUTF-8テキストとして読み込めません。")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    if not content.strip():
+        errors.append("ファイルが空です。")
+        hints.append("`terraform show -json <planfile>` でplan JSONを生成してください。")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        errors.append(f"JSONの構文エラーです（行 {e.lineno}, 列 {e.colno}）: {e.msg}")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    if not isinstance(data, dict):
+        errors.append("JSONのルート要素がオブジェクトではありません。")
+        return ValidationResult(valid=False, errors=errors, hints=hints)
+
+    # plan JSON構造チェック（Terraform / OpenTofu 共通）
+    is_opentofu = "opentofu_version" in data
+    show_cmd = "tofu show -json <planfile>" if is_opentofu else "terraform show -json <planfile>"
+
+    if "planned_values" not in data:
+        errors.append("必須キー 'planned_values' が見つかりません。")
+        if "values" in data and "root_module" in data.get("values", {}):
+            hints.append(
+                "これは state の出力です。plan JSONを使用するには "
+                f"`{show_cmd}` を実行してください。"
+            )
+        else:
+            hints.append(
+                "Terraform / OpenTofu plan JSON形式ではないようです。"
+                " `terraform show -json <planfile>` または"
+                " `tofu show -json <planfile>` で生成してください。"
+            )
+
+    if "resource_changes" not in data:
+        errors.append("必須キー 'resource_changes' が見つかりません。")
+        hints.append("plan JSONが不完全な可能性があります。")
 
     return ValidationResult(
         valid=len(errors) == 0,

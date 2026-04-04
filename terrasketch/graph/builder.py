@@ -80,6 +80,17 @@ try:
 except ImportError:
     pass
 
+# Kubernetesルールが利用可能であれば読み込む
+try:
+    from terrasketch.mapping.extended_resources import (
+        EXTENDED_K8S_RELATIONSHIP_RULES,
+        K8S_CONTAINMENT_RULES,
+    )
+    _ALL_RULES = _ALL_RULES + EXTENDED_K8S_RELATIONSHIP_RULES
+    _CONTAINMENT_RULES.update(K8S_CONTAINMENT_RULES)
+except ImportError:
+    pass
+
 
 def _get_nested(attrs: dict, path: str):
     """ドット区切りパスで辿ってネストされた属性値を取得する。

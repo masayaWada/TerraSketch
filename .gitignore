@@ -8,3 +8,5 @@ output/
 *.drawio
 !samples/output/*.drawio
 .venv/
+.claude/
+.coverage

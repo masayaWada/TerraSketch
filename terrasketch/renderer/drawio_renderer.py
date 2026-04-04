@@ -178,6 +178,7 @@ class DrawioRenderer:
         show_labels: bool = False,
         diff_mode: bool = False,
         group_by_module: bool = False,
+        tag_groups: dict[str, list[str]] | None = None,
     ) -> Path:
         """グラフ全体をdraw.io XMLファイルとしてレンダリングする。
 
@@ -268,8 +269,48 @@ class DrawioRenderer:
                 geo.set("height", str(round(max_y - min_y)))
                 geo.set("as", "geometry")
 
+        # タググループコンテナを作成
+        tag_group_cell_ids: dict[str, str] = {}
+        tag_contained_nodes: set[str] = set()
+        if tag_groups:
+            tag_group_style = (
+                "rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;"
+                "strokeColor=#e65100;strokeWidth=2;dashed=1;"
+                "verticalAlign=top;align=left;spacingTop=5;spacingLeft=10;"
+                "fontSize=13;fontStyle=1;container=1;collapsible=0;"
+            )
+            for tag_value, node_addrs in sorted(tag_groups.items()):
+                # グループ内のノードがグラフに存在するか確認
+                valid_addrs = [a for a in node_addrs if a in graph.nodes]
+                if not valid_addrs:
+                    continue
+                tag_contained_nodes.update(valid_addrs)
+
+                group_positions = [positions.get(n, (100.0, 100.0)) for n in valid_addrs]
+                min_x = min(p[0] for p in group_positions) - 50
+                min_y = min(p[1] for p in group_positions) - 70
+                max_x = max(p[0] for p in group_positions) + 110
+                max_y = max(p[1] for p in group_positions) + 110
+
+                cell_id = self._next_id()
+                tag_group_cell_ids[tag_value] = cell_id
+
+                cell = ET.SubElement(root, "mxCell")
+                cell.set("id", cell_id)
+                cell.set("value", tag_value)
+                cell.set("style", tag_group_style)
+                cell.set("vertex", "1")
+                cell.set("parent", "1")
+
+                geo = ET.SubElement(cell, "mxGeometry")
+                geo.set("x", str(round(min_x)))
+                geo.set("y", str(round(min_y)))
+                geo.set("width", str(round(max_x - min_x)))
+                geo.set("height", str(round(max_y - min_y)))
+                geo.set("as", "geometry")
+
         # コンテナグループを構築（VPC > Subnet の2段階ネスト）
-        vpc_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        vpc_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network", "kubernetes_namespace", "kubernetes_namespace_v1"}
         subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
 
         # VPCとSubnetの子ノードを収集
@@ -410,6 +451,13 @@ class DrawioRenderer:
 
             style = get_drawio_style(resource.type)
             label = data.get("label", f"{resource.type}\n{resource.name}")
+            # コストラベルを追加
+            cost_label = data.get("cost_label", "")
+            cost_diff_label = data.get("cost_diff_label", "")
+            if cost_diff_label:
+                label = f"{label}\n{cost_diff_label}"
+            elif cost_label:
+                label = f"{label}\n{cost_label}"
             x, y = positions.get(node_addr, (100.0, 100.0))
 
             # 親を決定: Subnetコンテナ内 > VPCコンテナ内 > ルート

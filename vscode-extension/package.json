@@ -1,0 +1,116 @@
+{
+  "name": "terrasketch-vscode",
+  "displayName": "TerraSketch",
+  "description": "Terraform / OpenTofu構成図をVS Codeから自動生成",
+  "version": "0.1.0",
+  "publisher": "terrasketch",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/TerraSketch"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "terraform",
+    "opentofu",
+    "infrastructure",
+    "diagram",
+    "draw.io",
+    "mermaid",
+    "plantuml"
+  ],
+  "activationEvents": [
+    "onLanguage:terraform",
+    "onCommand:terrasketch.generate",
+    "onCommand:terrasketch.preview",
+    "onCommand:terrasketch.watch"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "terrasketch.generate",
+        "title": "TerraSketch: 構成図を生成",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "terrasketch.preview",
+        "title": "TerraSketch: 構成図をプレビュー",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "terrasketch.watch",
+        "title": "TerraSketch: ファイル監視の切替",
+        "icon": "$(eye)"
+      }
+    ],
+    "configuration": {
+      "title": "TerraSketch",
+      "properties": {
+        "terrasketch.provider": {
+          "type": "string",
+          "default": "aws",
+          "enum": [
+            "aws",
+            "azure",
+            "gcp",
+            "kubernetes",
+            "all"
+          ],
+          "description": "クラウドプロバイダ（aws / azure / gcp / kubernetes / all）"
+        },
+        "terrasketch.format": {
+          "type": "string",
+          "default": "drawio",
+          "enum": [
+            "drawio",
+            "mermaid",
+            "plantuml",
+            "svg",
+            "html"
+          ],
+          "description": "出力形式（drawio / mermaid / plantuml / svg / html）"
+        },
+        "terrasketch.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python実行パス（仮想環境のパスも指定可）"
+        },
+        "terrasketch.autoGenerate": {
+          "type": "boolean",
+          "default": false,
+          "description": "ファイル保存時に自動で構成図を再生成する"
+        },
+        "terrasketch.runtime": {
+          "type": "string",
+          "default": "terraform",
+          "enum": [
+            "terraform",
+            "opentofu"
+          ],
+          "description": "使用するランタイム（terraform / opentofu）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "prepackage": "npm run compile",
+    "package": "vsce package",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0",
+    "@vscode/test-electron": "^2.3.8"
+  }
+}
