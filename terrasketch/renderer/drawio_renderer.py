@@ -269,8 +269,8 @@ class DrawioRenderer:
                 geo.set("as", "geometry")
 
         # コンテナグループを構築（VPC > Subnet の2段階ネスト）
-        vpc_types = {"aws_vpc", "azurerm_virtual_network"}
-        subnet_types = {"aws_subnet", "azurerm_subnet"}
+        vpc_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
 
         # VPCとSubnetの子ノードを収集
         vpc_children: dict[str, list[str]] = {}

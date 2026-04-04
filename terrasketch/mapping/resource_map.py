@@ -96,6 +96,40 @@ _AZURE_MAPPING: dict[str, DrawioStyle] = {
     ),
 }
 
+# GCPリソースタイプ -> draw.ioスタイル マッピング
+_GCP_MAPPING: dict[str, DrawioStyle] = {
+    "google_compute_instance": DrawioStyle(
+        shape="mxgraph.gcp2.compute_engine",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.compute_engine;",
+    ),
+    "google_compute_network": DrawioStyle(
+        shape="mxgraph.gcp2.virtual_private_cloud",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.virtual_private_cloud;",
+    ),
+    "google_compute_subnetwork": DrawioStyle(
+        shape="mxgraph.gcp2.virtual_private_cloud",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.virtual_private_cloud;",
+    ),
+    "google_compute_firewall": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_firewall_rules",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_firewall_rules;",
+    ),
+    "google_compute_address": DrawioStyle(
+        shape="mxgraph.gcp2.external_ip_addresses",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.external_ip_addresses;",
+    ),
+    "google_compute_router": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_router",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_router;",
+    ),
+}
+
 # 未マッピングリソース用のデフォルトスタイル
 _DEFAULT_STYLE = DrawioStyle(
     shape="rounded=1",
@@ -114,9 +148,11 @@ def _load_extended() -> None:
         from terrasketch.mapping.extended_resources import (
             EXTENDED_AWS_MAPPING,
             EXTENDED_AZURE_MAPPING,
+            EXTENDED_GCP_MAPPING,
         )
         _AWS_MAPPING.update(EXTENDED_AWS_MAPPING)
         _AZURE_MAPPING.update(EXTENDED_AZURE_MAPPING)
+        _GCP_MAPPING.update(EXTENDED_GCP_MAPPING)
     except ImportError:
         pass
 
@@ -137,6 +173,8 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
         return _AWS_MAPPING[resource_type]
     if resource_type in _AZURE_MAPPING:
         return _AZURE_MAPPING[resource_type]
+    if resource_type in _GCP_MAPPING:
+        return _GCP_MAPPING[resource_type]
 
     # 拡張マッピングを試行
     _load_extended()
@@ -144,6 +182,8 @@ def get_drawio_style(resource_type: str) -> DrawioStyle:
         return _AWS_MAPPING[resource_type]
     if resource_type in _AZURE_MAPPING:
         return _AZURE_MAPPING[resource_type]
+    if resource_type in _GCP_MAPPING:
+        return _GCP_MAPPING[resource_type]
 
     return _DEFAULT_STYLE
 
@@ -161,4 +201,6 @@ def get_provider_from_type(resource_type: str) -> str:
         return "aws"
     if resource_type.startswith("azurerm_"):
         return "azure"
+    if resource_type.startswith("google_"):
+        return "gcp"
     return "unknown"

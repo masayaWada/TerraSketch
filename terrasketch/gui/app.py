@@ -353,7 +353,7 @@ class TerraSketchApp:
 
         prov_frame = ttk.LabelFrame(row_frame, text="プロバイダ", padding=5)
         prov_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        for prov in ("aws", "azure"):
+        for prov in ("aws", "azure", "gcp", "all"):
             ttk.Radiobutton(prov_frame, text=prov.upper(), value=prov, variable=self._provider).pack(side=tk.LEFT, padx=10)
 
         fmt_frame = ttk.LabelFrame(row_frame, text="出力形式", padding=5)
@@ -375,7 +375,7 @@ class TerraSketchApp:
 
         prov_frame = ttk.LabelFrame(row_frame, text="プロバイダ", padding=5)
         prov_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        for prov in ("aws", "azure"):
+        for prov in ("aws", "azure", "gcp", "all"):
             ttk.Radiobutton(prov_frame, text=prov.upper(), value=prov, variable=self._provider).pack(side=tk.LEFT, padx=10)
 
         fmt_frame = ttk.LabelFrame(row_frame, text="出力形式", padding=5)
@@ -396,7 +396,7 @@ class TerraSketchApp:
 
         prov_frame = ttk.LabelFrame(row_frame, text="プロバイダ", padding=5)
         prov_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        for prov in ("aws", "azure"):
+        for prov in ("aws", "azure", "gcp", "all"):
             ttk.Radiobutton(prov_frame, text=prov.upper(), value=prov, variable=self._provider).pack(side=tk.LEFT, padx=10)
 
         fmt_frame = ttk.LabelFrame(row_frame, text="出力形式", padding=5)

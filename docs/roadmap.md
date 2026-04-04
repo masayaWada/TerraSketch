@@ -2,139 +2,128 @@
 
 本ドキュメントでは、TerraSketch の今後の機能拡張計画を優先度順に整理する。
 
-> **最終更新:** 2026-03-31
-> **現在のバージョン:** v0.1.0
+> **最終更新:** 2026-04-04
+> **現在のバージョン:** v0.2.0
 
 ---
 
-## 実装済み
+## 実装済み（v0.1.0 → v0.2.0）
 
-- [x] ネスト属性パス解決 — `_get_nested()` でドット区切りパス（`vpc_config.subnet_ids`）を辿る
-- [x] 切断グラフ分離レイアウト — `weakly_connected_components` で各コンポーネントを独立配置
-- [x] テストカバレッジ強化 — 68件（parser 6, graph 11, layout 9, renderer 14, mapping 10, integration 4, hcl 12, 他 2）
-- [x] エッジタイプ区別 — `contains`（包含: 緑実線）と `references`（参照: 青破線）の視覚的区別
-- [x] Mermaid VPC/Subnetネスト — subgraph による VPC > Subnet > リソースの3階層表現
-- [x] draw.io ツールチップ — ホバー時に ARN / CIDR / tags 等の属性を表示
-- [x] ログ基盤整備 — `print` → `logging` モジュール化、`--verbose` フラグ対応
-- [x] PlantUML レンダラー — ステレオタイプ・package階層化・エッジタイプ区別対応
-- [x] Terraform HCL 解析 — 外部依存なしの軽量パーサー、`--hcl` オプション
-- [x] CI/CD パイプライン — GitHub Actions（Python 3.10/3.11/3.12 マトリクス、ruff リンター）
+<details>
+<summary>クリックで展開</summary>
 
----
+- Terraform state JSON / HCL 解析
+- draw.io / Mermaid / PlantUML / SVG 出力
+- AWS / Azure / GCP マルチプロバイダ対応
+- VPC → Subnet コンテナグルーピング
+- エッジタイプ区別（contains / references）・ラベル表示
+- diff モード（構成変更の色分け可視化）
+- レイアウトアルゴリズム選択（hierarchical / grid / force）
+- セキュリティルール詳細表示・ツールチップ
+- Terraform module 境界の可視化
+- watch モード（ファイル変更監視・自動再生成）
+- Web UI / GUI（タブ化UI）
+- カスタムテーマ（TOML設定）
+- Terraform Cloud / Enterprise 連携
+- プラグインシステム（entry_points）
+- GitHub Actions CI/CD
 
-## フェーズ 1 — 品質・安定性（優先度: 高）
-
-- [x] **1-1. ビューポート自動計算**
-  - 現状: draw.io のビューポートサイズが `dx="1422" dy="762"` にハードコード
-  - 改善: 全ノード座標からバウンディングボックスを算出し `dx` / `dy` を動的設定
-  - 対象: `terrasketch/renderer/drawio_renderer.py`
-
-- [x] **1-2. GUI の PlantUML / HCL 対応**
-  - 現状: GUI は draw.io / Mermaid のみ選択可能。PlantUML と HCL 入力は CLI 限定
-  - 改善: 出力形式に PlantUML を追加、入力に HCL ファイル / ディレクトリ選択を追加
-  - 対象: `terrasketch/gui/app.py`
-
-- [x] **1-3. Subnet コンテナグルーピング（draw.io）**
-  - 現状: draw.io の VPC コンテナ内で Subnet はフラットなノードとして描画される
-  - 改善: VPC コンテナ内に Subnet コンテナ（`container=1`）をネスト、2段階バウンディングボックス計算
-  - 対象: `terrasketch/renderer/drawio_renderer.py`
-
-- [x] **1-4. エッジラベル表示**
-  - 現状: エッジに関係タイプ情報はあるが、接続属性名（`vpc_id` 等）が構成図から読み取れない
-  - 改善: `build_graph()` でエッジに `attr_name` を付与、`--labels` オプションで表示切替
-  - 対象: `terrasketch/graph/builder.py`, 各レンダラー, `terrasketch/main.py`
+</details>
 
 ---
 
-## フェーズ 2 — 機能強化（優先度: 中）
+## フェーズ 5 — DX・品質向上（優先度: 高）✅ 完了
 
-- [x] **2-1. diff モード（構成変更の可視化）**
-  - 2つの Terraform state JSON を比較し、追加/削除/変更リソースを色分けで可視化
-  - `terrasketch diff --before old_state.json --after new_state.json`
-  - 追加: 緑、削除: 赤、変更: 黄。全レンダラーで対応
-  - 新規: `terrasketch/diff/comparator.py`
+- [x] **5-1. PyPI パッケージ公開**
+  - `pyproject.toml` 整備（メタデータ・分類子・ライセンス・README・URL）
+  - SemVer v0.2.0 でバージョニング
+  - GitHub Actions で PyPI への自動リリースパイプライン構築（`.github/workflows/release.yml`）
 
-- [x] **2-2. レイアウトアルゴリズムの改善**
-  - 現状: 同一層のノード配置が最適でない（交差エッジが多い場合がある）
-  - 改善: Sugiyama アルゴリズムの交差最小化（barycenter法）を導入
-  - `--layout` オプションで `hierarchical` / `grid` / `force` を選択可能に
-  - 対象: `terrasketch/layout/engine.py`
+- [x] **5-2. テストカバレッジ 90%+ 到達**
+  - 154件 → 270件にテスト拡充（CLI、バリデーター、Web統合、セキュリティ詳細等）
+  - `pytest-cov` でカバレッジ閾値85%ゲート設定、実測91%+
+  - GUI（Tkinter）はカバレッジ対象から除外
 
-- [x] **2-3. セキュリティルール詳細表示の強化**
-  - 現状: ノードラベルに短縮形のみ、ツールチップにルールテーブル未統合
-  - 改善: ツールチップに `get_rules_table()` 統合、Allow/Deny 色分け、ポート情報のエッジ注釈
-  - 対象: `terrasketch/graph/security.py`, `terrasketch/renderer/drawio_renderer.py`
+- [x] **5-3. エラーメッセージの改善**
+  - `terrasketch validate --state/--hcl` で入力ファイルの事前検証
+  - JSON構文エラー、plan出力の誤指定、欠落キー等に対処ヒントを表示
+  - `generate` コマンド実行前にも自動検証を実施
 
-- [x] **2-4. Terraform module 対応の強化**
-  - 現状: `child_modules` を再帰的に辿るがモジュール境界の情報が失われる
-  - 改善: `Resource` に `module_path` を追加、モジュール境界をコンテナ / subgraph で可視化
-  - `--group-by module` オプションでグルーピング選択
-  - 対象: `terrasketch/parser/state_parser.py`, 各レンダラー
-
-- [x] **2-5. SVG 直接出力**
-  - draw.io を介さず SVG（XML直接生成、外部依存なし）を出力
-  - `--format svg` で選択
-  - 新規: `terrasketch/renderer/svg_renderer.py`
+- [x] **5-4. ドキュメントサイト構築**
+  - MkDocs Material でドキュメントサイト生成
+  - チュートリアル、CLIリファレンス、出力形式ガイド、プラグイン開発ガイド
+  - GitHub Pages へのデプロイ自動化（`.github/workflows/docs.yml`）
 
 ---
 
-## フェーズ 3 — 拡張・エコシステム（優先度: 低〜中）
+## フェーズ 6 — 機能拡張（優先度: 中）
 
-- [x] **3-1. watch モード（ファイル変更監視）**
-  - State / HCL の変更を監視し自動再生成（`watchdog` オプション依存、debounce 500ms）
-  - `terrasketch watch --state state.json --output ./output`
+- [ ] **6-1. Kubernetes リソース対応**
+  - Terraform の `kubernetes_*` リソースを構成図に可視化
+  - Namespace → Deployment → Pod → Container の階層表現
+  - Service → Deployment のエッジ、Ingress の注釈表示
 
-- [x] **3-2. Web UI（ブラウザベース）**
-  - `terrasketch serve` でローカル HTTP サーバーを起動
-  - ファイルアップロード → プレビュー → ダウンロードのワークフロー
-  - Mermaid はブラウザ内でリアルタイムレンダリング
-  - 依存: `http.server`（標準ライブラリのみ）
-  - 新規: `terrasketch/web/server.py`, `terrasketch/web/templates/`
+- [ ] **6-2. コスト注釈表示**
+  - `infracost` JSON 出力との統合
+  - ノードに月額コスト推定を注釈表示
+  - diff モードでのコスト増減の色分け
 
-- [x] **3-3. カスタムテーマ / スタイル設定**
-  - `terrasketch.yaml` / `terrasketch.toml` でリソースの色・形状・アイコンをカスタマイズ
-  - `--theme dark` / `--theme light` / `--theme custom` オプション
-  - 設定例:
-    ```yaml
-    theme:
-      background: "#ffffff"
-      edge_contains_color: "#2e7d32"
-      edge_references_color: "#1565c0"
-    resources:
-      aws_vpc:
-        color: "#e8f5e9"
-        icon: "mxgraph.aws4.vpc"
-    ```
-  - 新規: `terrasketch/config/theme.py`
+- [ ] **6-3. インタラクティブ HTML 出力**
+  - D3.js / Cytoscape.js ベースのインタラクティブ構成図
+  - ズーム・パン・ノードクリックで詳細表示
+  - フィルタリング（プロバイダ別・リソースタイプ別・タグ別）
+  - `--format html` で出力
 
-- [x] **3-4. Terraform Cloud / Enterprise 連携**
-  - `terrasketch generate --tfc-workspace <org>/<workspace> --tfc-token <token>`
-  - State Versions API から State JSON を直接取得
-  - トークンは環境変数 `TFC_TOKEN` でも指定可能
-  - ローカル完結原則との兼ね合いからオプション機能として分離
-  - 新規: `terrasketch/remote/tfc_client.py`
+- [ ] **6-4. Terraform plan 対応**
+  - `terraform show -json <planfile>` 形式の解析
+  - plan 段階での構成図プレビュー（適用前の変更予測）
+  - 追加予定/削除予定/変更予定のリソースを色分け表示
 
-- [x] **3-5. プラグインシステム**
-  - Python エントリーポイント（`[project.entry-points]`）で外部プラグインを発見
-  - `terrasketch.renderers` / `terrasketch.mappings` グループでレンダラー・マッピングを拡張
-  - プラグイン例:
-    ```toml
-    [project.entry-points."terrasketch.renderers"]
-    d2 = "terrasketch_d2:D2Renderer"
-    ```
+- [ ] **6-5. タグベースグルーピング**
+  - `--group-by tag:Environment` でタグ値に基づくグルーピング
+  - 任意のタグキーを指定可能
+  - グループ間の参照関係も可視化
 
 ---
 
-## フェーズ 4 — プロバイダ拡張（優先度: 最低）
+## フェーズ 7 — エコシステム連携（優先度: 低〜中）
 
-- [ ] **4-1. GCP 対応**
-  - 初期: `google_compute_instance` / `google_compute_network` / `google_compute_subnetwork` 等の基本リソース + `mxgraph.gcp2.*` アイコン
-  - 拡張: GKE、Cloud Functions、Cloud SQL、Cloud Storage、Firewall ルール可視化
-  - 対象: `terrasketch/mapping/extended_resources.py`, `terrasketch/graph/builder.py`
+- [ ] **7-1. VS Code 拡張**
+  - `.tf` / `.tfstate` ファイルからワンクリックで構成図生成
+  - サイドパネルでのプレビュー表示
+  - ファイル保存時の自動更新（watch モード統合）
 
-- [ ] **4-2. マルチプロバイダ構成図**
-  - `--provider all` でフィルタを無効化し、AWS / Azure / GCP を1つの構成図に混在表示
-  - プロバイダごとのグルーピングと、プロバイダ間参照関係の表現
+- [ ] **7-2. GitHub Actions アクション公開**
+  - `uses: terrasketch/action@v1` で PR に構成図を自動コメント
+  - diff モードで変更前後の構成図比較を PR レビューに統合
+  - アーティファクトとして構成図ファイルを保存
+
+- [ ] **7-3. Atlantis / Spacelift 連携**
+  - PR ベースの Terraform ワークフローに構成図生成を組み込み
+  - plan 実行後に自動で構成図を生成しコメント投稿
+
+- [ ] **7-4. OpenTofu 対応**
+  - OpenTofu の state 形式との互換性検証・対応
+  - `--runtime opentofu` オプション
+
+---
+
+## フェーズ 8 — 高度な可視化（優先度: 低）
+
+- [ ] **8-1. ネットワークトポロジービュー**
+  - CIDR ベースのサブネット配置・ルートテーブル可視化
+  - VPN / Peering / Transit Gateway の接続図
+  - セキュリティグループのルールフロー図
+
+- [ ] **8-2. 時系列変更ビュー**
+  - 複数の state バージョンを時系列でアニメーション表示
+  - Git 履歴から state の変遷を自動追跡
+  - タイムラインスライダーでの状態遷移
+
+- [ ] **8-3. AI 支援レイアウト**
+  - リソース間の論理的関係を考慮した自動レイアウト最適化
+  - ユーザーの手動配置を学習し、類似構成に適用
+  - 構成図の自然言語サマリー生成
 
 ---
 
@@ -153,5 +142,7 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-04-04 | v0.2.0 — フェーズ5完了（PyPI公開準備・テスト91%+・エラー改善・ドキュメントサイト） |
+| 2026-04-04 | v0.2.0 — フェーズ1〜4完了。フェーズ5〜8の新計画を策定 |
 | 2026-03-31 | チェックリスト形式に変更 |
 | 2026-03-29 | 初版作成。フェーズ1〜4の計画を策定 |

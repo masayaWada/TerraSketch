@@ -97,7 +97,7 @@ def generate(
     logger.info("%d件のリソースを検出。", len(resources))
 
     # プロバイダでフィルタリング
-    prefix_map = {"aws": "aws_", "azure": "azurerm_"}
+    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
@@ -183,7 +183,7 @@ def diff_generate(
     resources, diff_status, changed_attrs = compare_states(before_path, after_path)
 
     # プロバイダフィルタ
-    prefix_map = {"aws": "aws_", "azure": "azurerm_"}
+    prefix_map = {"aws": "aws_", "azure": "azurerm_", "gcp": "google_"}
     prefix = prefix_map.get(provider, "")
     if prefix:
         resources = [r for r in resources if r.type.startswith(prefix)]
@@ -235,7 +235,7 @@ def main() -> None:
     """CLIエントリーポイント。"""
     parser = argparse.ArgumentParser(
         prog="terrasketch",
-        description="TerraSketch - Terraform stateを唯一の信頼源としてAWS/Azureの構成図を自動生成",
+        description="TerraSketch - Terraform stateを唯一の信頼源としてAWS/Azure/GCPの構成図を自動生成",
     )
     subparsers = parser.add_subparsers(dest="command", help="利用可能なコマンド")
 
@@ -251,7 +251,7 @@ def main() -> None:
     )
     gen_parser.add_argument(
         "--provider",
-        choices=["aws", "azure"],
+        choices=["aws", "azure", "gcp", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -306,6 +306,17 @@ def main() -> None:
         help="デバッグレベルの詳細ログを表示",
     )
 
+    # validateコマンド
+    validate_parser = subparsers.add_parser(
+        "validate", help="入力ファイルの形式を事前検証"
+    )
+    validate_parser.add_argument(
+        "--state", help="検証するTerraform state JSONファイルのパス"
+    )
+    validate_parser.add_argument(
+        "--hcl", help="検証するTerraform HCLファイルまたはディレクトリのパス"
+    )
+
     # diffコマンド
     diff_parser = subparsers.add_parser(
         "diff", help="2つのTerraform stateを比較し、構成変更を可視化"
@@ -318,7 +329,7 @@ def main() -> None:
     )
     diff_parser.add_argument(
         "--provider",
-        choices=["aws", "azure"],
+        choices=["aws", "azure", "gcp", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -351,7 +362,7 @@ def main() -> None:
     )
     watch_parser.add_argument(
         "--provider",
-        choices=["aws", "azure"],
+        choices=["aws", "azure", "gcp", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -430,7 +441,7 @@ def main() -> None:
     )
     tfc_parser.add_argument(
         "--provider",
-        choices=["aws", "azure"],
+        choices=["aws", "azure", "gcp", "all"],
         default="aws",
         help="クラウドプロバイダ（デフォルト: aws）",
     )
@@ -458,9 +469,49 @@ def main() -> None:
 
     _setup_logging(getattr(args, "verbose", False))
 
+    if args.command == "validate":
+        from terrasketch.parser.validator import (
+            format_validation_result,
+            validate_hcl_file,
+            validate_state_file,
+        )
+
+        if not args.state and not args.hcl:
+            validate_parser.error("--state または --hcl のいずれかを指定してください。")
+        if args.state:
+            result = validate_state_file(args.state)
+            print(format_validation_result(result))
+            if not result.valid:
+                sys.exit(1)
+        if args.hcl:
+            result = validate_hcl_file(args.hcl)
+            print(format_validation_result(result))
+            if not result.valid:
+                sys.exit(1)
+        return
+
     if args.command == "generate":
         if not args.state and not args.hcl:
             gen_parser.error("--state または --hcl のいずれかを指定してください。")
+
+        # 入力ファイルの事前検証
+        from terrasketch.parser.validator import (
+            format_validation_result,
+            validate_hcl_file,
+            validate_state_file,
+        )
+
+        if args.state:
+            vr = validate_state_file(args.state)
+            if not vr.valid:
+                print(format_validation_result(vr), file=sys.stderr)
+                sys.exit(1)
+        if args.hcl:
+            vr = validate_hcl_file(args.hcl)
+            if not vr.valid:
+                print(format_validation_result(vr), file=sys.stderr)
+                sys.exit(1)
+
         generate(
             state_path=args.state,
             provider=args.provider,

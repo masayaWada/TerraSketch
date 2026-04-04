@@ -31,6 +31,13 @@ _AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("azurerm_network_security_group", "resource_group_name", "azurerm_resource_group"),
 ]
 
+_GCP_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
+    ("google_compute_subnetwork", "network", "google_compute_network"),
+    ("google_compute_instance", "subnetwork", "google_compute_subnetwork"),
+    ("google_compute_firewall", "network", "google_compute_network"),
+    ("google_compute_router", "network", "google_compute_network"),
+]
+
 # 包含関係（親が子を含む）を表すルールのセット。
 # (src_type, attr_name, tgt_type) のキーで判定する。
 _CONTAINMENT_RULES: set[tuple[str, str, str]] = {
@@ -47,20 +54,28 @@ _CONTAINMENT_RULES: set[tuple[str, str, str]] = {
     ("aws_alb", "subnets", "aws_subnet"),
     ("azurerm_subnet", "virtual_network_name", "azurerm_virtual_network"),
     ("azurerm_network_interface", "subnet_id", "azurerm_subnet"),
+    # GCP包含関係
+    ("google_compute_subnetwork", "network", "google_compute_network"),
+    ("google_compute_instance", "subnetwork", "google_compute_subnetwork"),
+    ("google_compute_firewall", "network", "google_compute_network"),
+    ("google_container_cluster", "subnetwork", "google_compute_subnetwork"),
+    ("google_container_cluster", "network", "google_compute_network"),
 }
 
-_ALL_RULES = _AWS_RELATIONSHIP_RULES + _AZURE_RELATIONSHIP_RULES
+_ALL_RULES = _AWS_RELATIONSHIP_RULES + _AZURE_RELATIONSHIP_RULES + _GCP_RELATIONSHIP_RULES
 
 # 拡張ルールが利用可能であれば読み込む
 try:
     from terrasketch.mapping.extended_resources import (
         EXTENDED_AWS_RELATIONSHIP_RULES,
         EXTENDED_AZURE_RELATIONSHIP_RULES,
+        EXTENDED_GCP_RELATIONSHIP_RULES,
     )
     _ALL_RULES = (
         _ALL_RULES
         + EXTENDED_AWS_RELATIONSHIP_RULES
         + EXTENDED_AZURE_RELATIONSHIP_RULES
+        + EXTENDED_GCP_RELATIONSHIP_RULES
     )
 except ImportError:
     pass

@@ -1,0 +1,52 @@
+site_name: TerraSketch
+site_description: Terraform stateからクラウド構成図を自動生成
+site_url: https://wada-masaya.github.io/terrasketch/
+repo_url: https://github.com/wada-masaya/terrasketch
+repo_name: wada-masaya/terrasketch
+
+theme:
+  name: material
+  language: ja
+  palette:
+    - scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    - scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - ホーム: index.md
+  - はじめに:
+      - インストール: guide/installation.md
+      - クイックスタート: guide/quickstart.md
+  - ガイド:
+      - CLI リファレンス: guide/cli.md
+      - 出力形式: guide/formats.md
+      - プラグイン開発: guide/plugins.md
+  - アーキテクチャ:
+      - 全体設計: architecture.md
+      - データフロー: data-flow.md
+      - 拡張ガイド: extension-guide.md
+  - ロードマップ: roadmap.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true

@@ -180,6 +180,82 @@ EXTENDED_AWS_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("aws_sqs_queue_policy", "queue_url", "aws_sqs_queue"),
 ]
 
+EXTENDED_GCP_MAPPING: dict[str, DrawioStyle] = {
+    # コンテナオーケストレーション
+    "google_container_cluster": DrawioStyle(
+        shape="mxgraph.gcp2.google_container_engine",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.google_container_engine;",
+    ),
+    "google_container_node_pool": DrawioStyle(
+        shape="mxgraph.gcp2.google_container_engine",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.google_container_engine;",
+    ),
+    # サーバーレス
+    "google_cloudfunctions_function": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_functions",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_functions;",
+    ),
+    # データベース
+    "google_sql_database_instance": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_sql",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_sql;",
+    ),
+    # ストレージ
+    "google_storage_bucket": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_storage",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_storage;",
+    ),
+    # メッセージング
+    "google_pubsub_topic": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_pubsub",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_pubsub;",
+    ),
+    "google_pubsub_subscription": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_pubsub",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_pubsub;",
+    ),
+    # DNS
+    "google_dns_managed_zone": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_dns",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_dns;",
+    ),
+    # ロードバランサー
+    "google_compute_forwarding_rule": DrawioStyle(
+        shape="mxgraph.gcp2.cloud_load_balancing",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.cloud_load_balancing;",
+    ),
+    # インスタンスグループ
+    "google_compute_instance_group": DrawioStyle(
+        shape="mxgraph.gcp2.compute_engine",
+        width=60, height=60,
+        style="outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;shape=mxgraph.gcp2.compute_engine;",
+    ),
+}
+
+EXTENDED_GCP_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
+    ("google_compute_subnetwork", "network", "google_compute_network"),
+    ("google_compute_instance", "subnetwork", "google_compute_subnetwork"),
+    ("google_compute_instance", "network_interface.subnetwork", "google_compute_subnetwork"),
+    ("google_compute_firewall", "network", "google_compute_network"),
+    ("google_container_cluster", "network", "google_compute_network"),
+    ("google_container_cluster", "subnetwork", "google_compute_subnetwork"),
+    ("google_container_node_pool", "cluster", "google_container_cluster"),
+    ("google_cloudfunctions_function", "vpc_connector", "google_compute_network"),
+    ("google_sql_database_instance", "private_network", "google_compute_network"),
+    ("google_compute_forwarding_rule", "network", "google_compute_network"),
+    ("google_compute_forwarding_rule", "subnetwork", "google_compute_subnetwork"),
+    ("google_pubsub_subscription", "topic", "google_pubsub_topic"),
+]
+
 EXTENDED_AZURE_RELATIONSHIP_RULES: list[tuple[str, str, str]] = [
     ("azurerm_windows_virtual_machine", "network_interface_ids", "azurerm_network_interface"),
     ("azurerm_storage_account", "resource_group_name", "azurerm_resource_group"),

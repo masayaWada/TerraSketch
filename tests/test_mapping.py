@@ -60,6 +60,11 @@ def test_provider_from_type_azure():
     assert get_provider_from_type("azurerm_virtual_network") == "azure"
 
 
+def test_provider_from_type_gcp():
+    """GCPリソースタイプからプロバイダ'gcp'が判定されることを確認。"""
+    assert get_provider_from_type("google_compute_instance") == "gcp"
+
+
 def test_provider_from_type_unknown():
     """未知のリソースタイプからプロバイダ'unknown'が判定されることを確認。"""
-    assert get_provider_from_type("google_compute_instance") == "unknown"
+    assert get_provider_from_type("unknown_resource") == "unknown"

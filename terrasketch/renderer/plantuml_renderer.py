@@ -41,6 +41,17 @@ _STEREOTYPE_MAP: dict[str, str] = {
     "azurerm_resource_group": "<<ResourceGroup>>",
     "azurerm_storage_account": "<<Storage>>",
     "azurerm_kubernetes_cluster": "<<AKS>>",
+    # GCPリソース
+    "google_compute_network": "<<VPCNetwork>>",
+    "google_compute_subnetwork": "<<Subnet>>",
+    "google_compute_instance": "<<GCE>>",
+    "google_compute_firewall": "<<Firewall>>",
+    "google_container_cluster": "<<GKE>>",
+    "google_cloudfunctions_function": "<<CloudFunction>>",
+    "google_sql_database_instance": "<<CloudSQL>>",
+    "google_storage_bucket": "<<GCS>>",
+    "google_pubsub_topic": "<<PubSub>>",
+    "google_compute_forwarding_rule": "<<LoadBalancer>>",
 }
 
 # リソースタイプごとのPlantUML色
@@ -144,8 +155,8 @@ class PlantUMLRenderer:
                 lines.append("")
 
         # VPC/VNetコンテナの階層構造を構築
-        container_types = {"aws_vpc", "azurerm_virtual_network"}
-        subnet_types = {"aws_subnet", "azurerm_subnet"}
+        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
         vpc_children: dict[str, list[str]] = {}
         subnet_children: dict[str, list[str]] = {}
         emitted_nodes: set[str] = set(module_emitted)

@@ -24,6 +24,15 @@ _SHAPE_MAP: dict[str, tuple[str, str]] = {
     "aws_db_instance": ("[(", ")]"),
     "aws_lambda_function": (">", "]"), # 非対称
     "aws_lb": ("([", "])"),            # スタジアム形
+    # GCPリソース
+    "google_compute_network": ("[[", "]]"),
+    "google_compute_subnetwork": ("[[", "]]"),
+    "google_compute_instance": ("[", "]"),
+    "google_compute_firewall": ("{{", "}}"),
+    "google_storage_bucket": ("[(", ")]"),
+    "google_sql_database_instance": ("[(", ")]"),
+    "google_cloudfunctions_function": (">", "]"),
+    "google_container_cluster": ("[", "]"),
 }
 
 _DEFAULT_SHAPE = ("[", "]")
@@ -95,8 +104,8 @@ class MermaidRenderer:
                 lines.append("    end")
 
         # VPC/VNet コンテナとSubnetコンテナの階層構造を構築
-        container_types = {"aws_vpc", "azurerm_virtual_network"}
-        subnet_types = {"aws_subnet", "azurerm_subnet"}
+        container_types = {"aws_vpc", "azurerm_virtual_network", "google_compute_network"}
+        subnet_types = {"aws_subnet", "azurerm_subnet", "google_compute_subnetwork"}
 
         # VPCの子ノードを収集
         vpc_children: dict[str, list[str]] = {}
@@ -258,6 +267,8 @@ def _detect_provider(resource_type: str) -> str:
         return "aws"
     if resource_type.startswith("azurerm_"):
         return "azure"
+    if resource_type.startswith("google_"):
+        return "gcp"
     return "unknown"
 
 
